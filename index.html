@@ -1,0 +1,2632 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!-- The browser itself enforces the privacy promise: the page may only talk to the government plan feed. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://cdr.energymadeeasy.gov.au; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Electricity plan check</title>
+<meta name="description" content="Every Victorian electricity plan, ranked by what your home would actually pay, from your own smart-meter file. Your file never leaves your device.">
+<style>
+  :root {
+    --bg: #f3f4f2; --card: #ffffff; --fg: #1d1d1b; --muted: #63635c; --line: #dfe0da;
+    --accent: #1c5d86; --accent-soft: #e6f0f6; --accent-fg: #ffffff; --warn: #8a4b00;
+    --good: #1f6b3a; --good-soft: #e2f1e6; --mine: #fff8e6; --mine-line: #d9b45a;
+    /* Chart lines, one per compared plan; each also has its own dash pattern */
+    --s0: #1c5d86; --s1: #c2571a; --s2: #7a4ea3; --s3: #2d7d74;
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #121211; --card: #1c1c1a; --fg: #ececea; --muted: #a3a39c; --line: #34342f;
+            --accent: #8dbbdc; --accent-soft: #1b2933; --accent-fg: #0f1a22; --warn: #f0b46a;
+            --good: #8fd3a5; --good-soft: #17301f; --mine: #2a2516; --mine-line: #8a7337;
+            --s0: #8dbbdc; --s1: #f0a060; --s2: #c4a0e8; --s3: #6fc8bd; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  .wrap { max-width: 44rem; margin: 0 auto; padding: 0 16px; }
+  [hidden] { display: none !important; }
+
+  /* Site header and navigation: the page is a small site of linked pages in one file */
+  header.site { background: var(--card); border-bottom: 1px solid var(--line); }
+  header.site .wrap { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; padding-top: 12px; padding-bottom: 10px; }
+  .brand { font-weight: 700; font-size: 1.05rem; color: inherit; text-decoration: none; }
+  nav.pages { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: .92rem; }
+  nav.pages a { text-decoration: none; padding: 2px 0; border-bottom: 2px solid transparent; }
+  nav.pages a[aria-current=page] { color: inherit; border-bottom-color: var(--accent); font-weight: 600; }
+  main { padding-top: 22px; padding-bottom: 28px; }
+  .lede { color: var(--muted); margin: 0 0 18px; }
+
+  /* Steps are panels, numbered */
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+          padding: 18px 18px 20px; margin-bottom: 14px; }
+  .step h2 { display: flex; align-items: center; gap: 10px; font-size: 1.1rem; margin: 0 0 14px; }
+  .n { display: inline-grid; place-items: center; width: 1.7rem; height: 1.7rem; flex: none;
+       border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-size: .9rem; }
+  .label { display: block; font-weight: 600; font-size: .95rem; margin: 16px 0 6px; }
+  .note { color: var(--muted); font-size: .9rem; margin: 8px 0 0; }
+  .note.warn { color: var(--warn); }
+  input[type=text], input[type=time], select { font: inherit; color: inherit; background: var(--card);
+       border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  #postcode { font-size: 1.05rem; width: 8rem; letter-spacing: .08em; }
+  input:focus, select:focus, button:focus-visible, .drop:focus-within, summary:focus-visible, a:focus-visible, .card:focus {
+       outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Network tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 8px; }
+  .tile { font: inherit; text-align: left; color: inherit; background: var(--card); cursor: pointer;
+          border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+  .tile b { display: block; font-size: .95rem; }
+  .tile span { display: block; color: var(--muted); font-size: .82rem; }
+  .tile[aria-pressed=true] { border: 2px solid var(--accent); padding: 8px 10px; background: var(--accent-soft); }
+  .tile:disabled { cursor: default; opacity: .55; }
+
+  /* Usage file */
+  details > summary { cursor: pointer; color: var(--accent); width: fit-content; }
+  .howto { margin: 0 0 12px; }
+  .howto p { color: var(--muted); font-size: .9rem; margin: 8px 0 0; }
+  .drop { position: relative; display: block; padding: 24px 16px; text-align: center; cursor: pointer;
+          border: 1.5px dashed var(--line); border-radius: 10px; color: var(--muted); }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  /* Toggles: chips for "applies to you", switches for options, segments for single choices */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: inherit; font-size: .88rem; color: inherit; background: var(--card); cursor: pointer;
+          border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; }
+  .chip[aria-pressed=true] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .chip[aria-pressed=true]::before { content: "✓ "; }
+  .switch { display: flex; align-items: center; gap: 10px; width: 100%; font: inherit; font-size: .95rem; text-align: left;
+            color: inherit; background: none; border: 0; padding: 5px 0; cursor: pointer; }
+  .track { position: relative; flex: none; width: 2.4rem; height: 1.35rem; border-radius: 999px;
+           background: var(--line); transition: background .15s; }
+  .track::after { content: ""; position: absolute; top: .15rem; left: .15rem; width: 1.05rem; height: 1.05rem;
+                  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+  .switch[aria-checked=true] .track { background: var(--accent); }
+  .switch[aria-checked=true] .track::after { transform: translateX(1.05rem); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { font: inherit; font-size: .88rem; color: inherit; background: var(--card); cursor: pointer;
+                border: 0; border-left: 1px solid var(--line); padding: 5px 11px; }
+  .seg button:first-child { border-left: 0; }
+  .seg button[aria-pressed=true] { background: var(--accent); color: var(--accent-fg); }
+  .seg button:focus-visible { outline-offset: -3px; }
+  .callout { border: 1px solid var(--mine-line); background: var(--mine); border-radius: 10px; padding: 10px 12px; margin-top: 16px; }
+  .callout p { margin: 0; }
+
+  /* Your own plan */
+  .own { margin-top: 16px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .own[open] summary { margin-bottom: 8px; }
+  .fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 8px 12px; margin: 10px 0; }
+  .fields label { display: flex; flex-direction: column; gap: 3px; font-size: .88rem; color: var(--muted); }
+  .fields input, .fields select { width: 100%; }
+  .btn { font: inherit; color: var(--accent-fg); background: var(--accent); cursor: pointer;
+         border: 0; border-radius: 8px; padding: 7px 14px; margin-top: 6px; }
+  .own-list { list-style: none; padding: 0; margin: 10px 0 0; }
+  .own-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: .9rem;
+                 padding: 6px 0; border-top: 1px solid var(--line); }
+  .own-list button, .asof button { font: inherit; font-size: .88rem; color: var(--accent); background: none; cursor: pointer;
+                 border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; }
+  .advice { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 10px; padding: 10px 12px; margin-top: 16px; }
+  .advice p { margin: 0 0 4px; }
+  .advice .verdict { font-weight: 600; }
+
+  /* Results */
+  .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: .9rem; margin-bottom: 8px; }
+  progress { flex: 1; max-width: 12rem; height: 8px; accent-color: var(--accent); }
+  .listhead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 20px 0 8px; }
+  .summary { font-size: .9rem; color: var(--muted); margin: 0; }
+  .cards { list-style: none; margin: 0; padding: 0; }
+  .card { display: grid; grid-template-columns: 1.8rem 1fr; gap: 10px; border: 1px solid var(--line);
+          border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; }
+  .card.mine { background: var(--mine); border-color: var(--mine-line); }
+  .tag { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--warn); }
+  .rank { color: var(--muted); font-weight: 600; padding-top: 1px; }
+  .card .top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px; }
+  .retailer, .cost { font-weight: 600; }
+  .cost, .diff { white-space: nowrap; }
+  .name, .meta, .src, .diff { color: var(--muted); font-size: .9rem; }
+  .card .credit, .card .save { font-size: .9rem; margin-top: 4px; }
+  .card .save { color: var(--good); }
+  .src { font-style: italic; }
+  .more { margin-top: 6px; font-size: .9rem; }
+  .rates { display: grid; grid-template-columns: minmax(7rem, 38%) 1fr; gap: 3px 12px; margin: 8px 0 2px; }
+  .rates dt { color: var(--muted); }
+  .rates dd { margin: 0; overflow-wrap: anywhere; }
+  .more-btn { display: block; width: 100%; font: inherit; color: var(--accent); background: none; cursor: pointer;
+              border: 1px solid var(--line); border-radius: 10px; padding: 9px; margin-top: 4px; }
+  .asof { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; color: var(--muted); font-size: .9rem; margin: 16px 0 8px; }
+  #how-short ul { color: var(--muted); font-size: .9rem; padding-left: 1.1rem; margin: 8px 0 0; }
+
+  /* Compare: a tick on each card, a bar under the list, and a page of its own */
+  .card .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 6px; }
+  .card .actions .more { margin-top: 0; flex: 1 1 12rem; }
+  .card .actions .chip { order: 2; }
+  .chip:disabled { cursor: default; opacity: .5; }
+  .compare-bar { position: sticky; bottom: 8px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center;
+                 justify-content: space-between; gap: 6px 12px; background: var(--card); border: 1px solid var(--accent);
+                 border-radius: 10px; padding: 9px 12px; margin-top: 10px; font-size: .92rem; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+  .compare-bar a { font-weight: 600; }
+  .compare-bar button { font: inherit; font-size: .88rem; color: var(--accent); background: none; cursor: pointer;
+                        border: 1px solid var(--line); border-radius: 8px; padding: 3px 10px; }
+  .scroll { overflow-x: auto; margin: 12px 0; }
+  table.cmp { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  .cmp th, .cmp td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); min-width: 8rem; }
+  .cmp tbody th { color: var(--muted); font-weight: 400; min-width: 7rem; position: sticky; left: 0; background: var(--card); }
+  .cmp thead th { vertical-align: bottom; font-weight: 400; }
+  .cmp thead b { display: block; }
+  .cmp thead .name { display: block; }
+  .cmp thead button { font: inherit; font-size: .82rem; color: var(--accent); background: none; cursor: pointer;
+                      border: 1px solid var(--line); border-radius: 8px; padding: 2px 8px; margin-top: 4px; }
+  .cmp .group th { color: var(--fg); font-weight: 700; padding-top: 16px; }
+  .cmp .total th, .cmp .total td { font-weight: 700; color: var(--fg); }
+  .cmp td.win { background: var(--good-soft); color: var(--good); font-weight: 700; }
+  .cmp .tag { display: block; }
+  .fields.wide { grid-template-columns: 1fr; }
+  .linkish { font: inherit; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  .card .linkish { font-size: .9rem; margin-top: 4px; }
+  .remind { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 12px; font-size: .92rem; }
+  .remind p, .advice .remind-links { margin: 0 0 6px; }
+  .remind-links { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+  .remind-links button { font: inherit; font-size: .9rem; color: var(--accent-fg); background: var(--accent); cursor: pointer;
+                         border: 0; border-radius: 8px; padding: 5px 12px; }
+  .tag.best { color: var(--good); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .chart { margin: 12px 0 0; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart .grid { stroke: var(--line); }
+  .chart .axis { stroke: var(--muted); }
+  .chart text { fill: var(--muted); font-size: 12px; font-family: inherit; }
+  .chart .line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .s0 { stroke: var(--s0); fill: var(--s0); } .s1 { stroke: var(--s1); fill: var(--s1); }
+  .s2 { stroke: var(--s2); fill: var(--s2); } .s3 { stroke: var(--s3); fill: var(--s3); }
+  .legend { list-style: none; padding: 0; margin: 8px 0 0; font-size: .9rem; }
+  .legend li { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .legend svg { flex: none; }
+  .legend .line { stroke-width: 3.5; }
+
+  /* Explanation pages */
+  .doc { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 20px 24px; }
+  .doc h1 { font-size: 1.5rem; margin: 0 0 6px; }
+  .doc h2 { font-size: 1.1rem; margin: 22px 0 6px; scroll-margin-top: 12px; }
+  .doc p, .doc li { max-width: 38rem; }
+  .doc p { margin: 0 0 8px; }
+  .doc ol, .doc ul { padding-left: 1.2rem; margin: 0 0 8px; }
+  .doc li { margin-bottom: 4px; }
+  .toc { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .9rem; padding: 10px 0 2px; border-top: 1px solid var(--line); margin-top: 12px; }
+  .words dt { font-weight: 700; margin-top: 14px; scroll-margin-top: 12px; }
+  .words dd { margin: 2px 0 0; max-width: 38rem; }
+  .words dt:target, .doc h2:target { background: var(--accent-soft); }
+  .doc .callout { margin: 0 0 10px; }
+  footer.wrap { color: var(--muted); font-size: .85rem; padding-bottom: 32px; }
+  footer nav { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-bottom: 6px; }
+  footer p { margin: 0 0 4px; }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <a class="brand" href="#check">Electricity plan check</a>
+    <nav class="pages" aria-label="Pages">
+      <a href="#check">Check plans</a>
+      <a href="#compare">Compare<span id="nav-count"></span></a>
+      <a href="#how">How it works</a>
+      <a href="#data">Your data</a>
+      <a href="#words">Words explained</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ======================= Page: check plans ======================= -->
+<section class="page" id="check" data-title="Electricity plan check">
+  <p class="lede">Find the electricity plan that would cost your home the least, from your own usage. Your usage file stays on this device (<a href="#data">your data</a>).</p>
+
+  <section class="step">
+    <h2><span class="n">1</span>Where you live</h2>
+    <label class="label" for="postcode" style="margin-top:0">Postcode</label>
+    <input id="postcode" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="4">
+    <p id="postcode-note" class="note warn" hidden></p>
+    <p class="label">Your <a href="#w-network">network</a></p>
+    <div class="tiles" role="group" aria-label="Your network">
+      <button type="button" class="tile" aria-pressed="true"><b>United Energy</b><span>South-east Melbourne</span></button>
+      <button type="button" class="tile" disabled><b>CitiPower</b><span>Inner Melbourne</span></button>
+      <button type="button" class="tile" disabled><b>Jemena</b><span>North-west Melbourne</span></button>
+      <button type="button" class="tile" disabled><b>AusNet Services</b><span>Eastern Victoria</span></button>
+      <button type="button" class="tile" disabled><b>Powercor</b><span>Western Victoria</span></button>
+    </div>
+    <p class="note">Only United Energy works now. Your bill shows the name of your network.</p>
+  </section>
+
+  <section class="step">
+    <h2><span class="n">2</span>Your usage</h2>
+    <div id="usage-mode" class="seg" role="group" aria-label="Which usage to price plans on">
+      <button type="button" data-usage="file" aria-pressed="true">My usage file</button>
+      <button type="button" data-usage="sample" aria-pressed="false">A sample home</button>
+    </div>
+    <div id="usage-file">
+      <details class="howto">
+        <summary>How to get this file</summary>
+        <p>Sign in to United Energy's myEnergy website. Download your usage as a "detailed report" (a .csv file). <a href="#w-usage-file">What is a usage file?</a></p>
+      </details>
+      <label id="drop" class="drop">
+        <input id="file" type="file" accept=".csv,text/csv">
+        <span id="drop-text">Drop the file here, or tap to choose it</span>
+      </label>
+      <p class="note">Your file stays on this device. It is never sent anywhere. <a href="#data-file">How?</a></p>
+    </div>
+    <div id="usage-sample" hidden>
+      <p class="callout note" style="margin-top:12px">A sample home is an average home of that size, from public figures. Your own home may use much more or much less, and at different times. Your own file gives a far better answer.</p>
+      <p class="label">People in your home</p>
+      <div id="sample-people" class="seg" role="group" aria-label="People in your home">
+        <button type="button" data-people="1" aria-pressed="false">1</button>
+        <button type="button" data-people="2" aria-pressed="true">2</button>
+        <button type="button" data-people="3" aria-pressed="false">3</button>
+        <button type="button" data-people="4" aria-pressed="false">4</button>
+        <button type="button" data-people="5" aria-pressed="false">5 or more</button>
+      </div>
+      <p class="note">Based on public figures for Victorian homes. <a href="#how-sample">Where they come from</a></p>
+    </div>
+    <p id="file-note" class="note" hidden></p>
+  </section>
+
+  <section class="step" id="step3">
+    <h2><span class="n">3</span>Your plans</h2>
+    <div id="loading" class="loading" hidden><progress id="bar"></progress><span id="load-text"></span></div>
+    <p id="message" class="note"></p>
+    <div id="results" hidden>
+      <div id="solar-box" class="callout" hidden style="margin-top:0">
+        <p><b>Your file shows no solar panels.</b></p>
+        <button type="button" class="switch" role="switch" aria-checked="false" id="solar-switch"><span class="track"></span>Show plans made for homes with solar</button>
+        <p class="note">Each card also shows its <a href="#w-solar-credit">solar credit</a>. This helps you decide about solar panels.</p>
+      </div>
+
+      <p class="label" id="needs-label">Tick anything that applies to you</p>
+      <div id="needs" class="chips"></div>
+
+      <p class="label">Options</p>
+      <div id="options">
+        <button type="button" class="switch" role="switch" aria-checked="false" data-option="credits"><span class="track"></span>Include sign-up credits in the cost</button>
+        <button type="button" class="switch" role="switch" aria-checked="false" data-option="flat"><span class="track"></span>Same price all day only</button>
+        <button type="button" class="switch" role="switch" aria-checked="false" data-option="direct"><span class="track"></span>Skip plans sold only by an agent or comparison site</button>
+        <button type="button" class="switch" role="switch" aria-checked="false" data-option="best"><span class="track"></span>Best plan from each retailer only</button>
+      </div>
+      <label class="label" for="retailer-filter">Retailer</label>
+      <select id="retailer-filter"><option value="">All retailers</option></select>
+
+      <details id="own" class="own">
+        <summary>Add your current plan or an offer</summary>
+        <div id="own-mode" class="seg" role="group" aria-label="How to add it">
+          <button type="button" data-mode="typed" aria-pressed="true">Type its prices</button>
+          <button type="button" data-mode="listed" aria-pressed="false">Pick a listed plan</button>
+        </div>
+        <div id="own-listed" hidden>
+          <div class="fields">
+            <label>Retailer <select id="own-pick-retailer"></select></label>
+            <label>Search <input id="own-search" type="search" placeholder="Part of the name or plan ID"></label>
+          </div>
+          <div class="fields wide">
+            <label>Plan <select id="own-pick"></select></label>
+          </div>
+          <p id="own-pick-count" class="note"></p>
+        </div>
+        <div id="own-typed">
+          <p class="note">Use the prices on your bill or offer. Include GST.</p>
+          <div class="fields">
+            <label>Name <input id="own-name" type="text" placeholder="My current plan"></label>
+            <label>Retailer <select id="own-retailer"></select></label>
+            <label>Daily charge (cents a day) <input id="own-daily" type="text" inputmode="decimal"></label>
+          </div>
+          <div id="own-kind" class="seg" role="group" aria-label="Kind of prices">
+            <button type="button" data-kind="flat" aria-pressed="true">Same price all day</button>
+            <button type="button" data-kind="peak" aria-pressed="false">Peak and off-peak</button>
+          </div>
+          <div id="own-flat" class="fields">
+            <label>Price (cents a kWh) <input id="own-rate" type="text" inputmode="decimal"></label>
+          </div>
+          <div id="own-peak" class="fields" hidden>
+            <label>Peak price (cents a kWh) <input id="own-peak-rate" type="text" inputmode="decimal"></label>
+            <label>Peak from <input id="own-peak-from" type="time" value="15:00"></label>
+            <label>Peak until <input id="own-peak-to" type="time" value="21:00"></label>
+            <label>Peak on <select id="own-peak-days"><option value="all">Every day</option><option value="weekdays">Weekdays only</option></select></label>
+            <label>Other times (cents a kWh) <input id="own-off-rate" type="text" inputmode="decimal"></label>
+          </div>
+          <div class="fields">
+            <label>Solar credit (cents a kWh) <input id="own-fit" type="text" inputmode="decimal" placeholder="0"></label>
+            <label>Sign-up credit ($) <input id="own-credit" type="text" inputmode="decimal" placeholder="0"></label>
+            <label>Credit paid over (months) <input id="own-credit-months" type="text" inputmode="numeric" value="1"></label>
+          </div>
+        </div>
+        <button type="button" class="switch" role="switch" aria-checked="false" id="own-current"><span class="track"></span>This is my current plan</button>
+        <div id="own-current-fields" class="fields" hidden>
+          <label>Unused sign-up credit left ($) <input id="own-unused" type="text" inputmode="decimal" placeholder="0"></label>
+        </div>
+        <p id="own-error" class="note warn" hidden></p>
+        <button type="button" id="own-add" class="btn">Add to the list</button>
+        <ul id="own-list" class="own-list"></ul>
+      </details>
+
+      <div id="advice" class="advice" hidden></div>
+
+      <div class="listhead">
+        <p class="summary"><span id="summary"></span> <button type="button" id="all-retailers" class="linkish" hidden>Show all retailers</button></p>
+        <div id="period" class="seg" role="group" aria-label="Show costs">
+          <button type="button" data-period="year" aria-pressed="true">Yearly</button>
+          <button type="button" data-period="quarter" aria-pressed="false">Quarterly</button>
+          <button type="button" data-period="month" aria-pressed="false">Monthly</button>
+        </div>
+      </div>
+      <p id="estimate-note" class="note" style="margin:0 0 10px"></p>
+      <ol id="cards" class="cards"></ol>
+      <button id="more" type="button" class="more-btn" hidden></button>
+      <div id="compare-bar" class="compare-bar" hidden>
+        <span id="compare-text"></span>
+        <span><a id="compare-go" href="#compare">Compare them</a> <button type="button" id="compare-clear">Clear</button></span>
+      </div>
+      <div id="remind" class="remind" hidden></div>
+    </div>
+    <p class="asof"><span id="asof"></span><button id="refresh" type="button" hidden>Refresh prices</button></p>
+    <details id="how-short" hidden>
+      <summary>Plans not shown</summary>
+      <ul id="how-list"></ul>
+    </details>
+    <p class="note"><a href="#how">How the page works out costs</a><span class="feedback-only"> · Something odd or confusing? <a class="feedback-link" href="#" target="_blank" rel="noopener">Tell me</a></span></p>
+  </section>
+</section>
+
+<!-- ======================= Page: compare ======================= -->
+<section class="page doc" id="compare" data-title="Compare plans · Electricity plan check" hidden>
+  <h1>Compare plans</h1>
+  <p id="cmp-empty" class="lede">Press "Compare" on two to four plans in <a href="#step3">Check plans</a>. They then show here, side by side.</p>
+  <div id="cmp-body" hidden>
+    <p id="cmp-setup" class="lede"></p>
+    <div class="listhead">
+      <button type="button" class="switch" role="switch" aria-checked="false" data-option="credits" style="width:auto"><span class="track"></span>Include sign-up credits in the cost</button>
+      <div class="seg" role="group" aria-label="Show costs">
+        <button type="button" data-period="year" aria-pressed="true">Yearly</button>
+        <button type="button" data-period="quarter" aria-pressed="false">Quarterly</button>
+        <button type="button" data-period="month" aria-pressed="false">Monthly</button>
+      </div>
+    </div>
+    <div class="scroll"><table id="cmp-table" class="cmp"></table></div>
+    <p class="note">Green marks the best value in each row.</p>
+
+    <h2 id="cmp-chart">What you would pay, month by month</h2>
+    <div id="chart-mode" class="seg" role="group" aria-label="Chart shows">
+      <button type="button" data-chart="diff" aria-pressed="true">Difference</button>
+      <button type="button" data-chart="total" aria-pressed="false">Running total</button>
+      <button type="button" data-chart="month" aria-pressed="false">Each month's bill</button>
+    </div>
+    <figure id="chart" class="chart"></figure>
+    <ul id="legend" class="legend"></ul>
+    <p id="chart-note" class="note"></p>
+    <details>
+      <summary>The same, in numbers</summary>
+      <div class="scroll"><table id="cmp-months" class="cmp"></table></div>
+    </details>
+  </div>
+</section>
+
+<!-- ======================= Page: how it works ======================= -->
+<section class="page doc" id="how" data-title="How it works · Electricity plan check" hidden>
+  <h1>How it works</h1>
+  <p class="lede">The page prices every current plan on your own usage, half hour by half hour. It then ranks the plans by cost.</p>
+  <nav class="toc" aria-label="On this page">
+    <a href="#how-prices">Prices</a><a href="#how-usage">Your usage</a><a href="#how-sample">Sample home</a><a href="#how-priced">Pricing</a><a href="#how-stay">The year ahead</a>
+    <a href="#how-credits">Credits</a><a href="#how-compare">Comparing</a><a href="#how-eligibility">Eligibility</a>
+    <a href="#how-default">Default Offer</a><a href="#how-current">Switching</a><a href="#how-not-covered">Not covered</a>
+    <a href="#how-accuracy">Accuracy</a><a href="#how-who">Why this exists</a><a href="#how-limits">Not advice</a>
+  </nav>
+
+  <h2 id="how-prices">Where the prices come from</h2>
+  <p>Every retailer must publish its plans in the government's public plan list. The law that requires this is the <a href="#w-cdr">Consumer Data Right</a>. The same list feeds Energy Made Easy and Victorian Energy Compare. When you open this page, it downloads today's plans for your <a href="#w-network">network</a>. It keeps them on your device for one day.</p>
+
+  <h2 id="how-usage">Your usage</h2>
+  <p>Your <a href="#w-usage-file">usage file</a> shows how much power your home took from the grid in each 5-minute or 30-minute interval. It also shows how much <a href="#w-solar">solar</a> power your home sent out. The page reads the last 12 months of the file. For each day that is missing from the file, the page uses your average day.</p>
+
+  <h2 id="how-sample">No file? A sample home</h2>
+  <p>If you do not have your usage file, you can price plans on a sample home with 1 to 5 or more people. It is an average home, not yours. So please use it to get a feel for the plans, and use your own file when you can.</p>
+  <ul>
+    <li>How much it uses in each season comes from the Australian Energy Regulator's <a href="https://www.aer.gov.au/system/files/Residential%20energy%20consumption%20benchmarks%20-%209%20December%202020_0.pdf" target="_blank" rel="noopener">benchmarks for Victorian homes</a> (Frontier Economics, 2020). For example, a 2-person home uses about 4,840 kWh a year, most of it in winter.</li>
+    <li>When in the day it uses power comes from all homes on United Energy's network in 2024 and 2025. This is the market operator's data, published by the <a href="https://www.esc.vic.gov.au/electricity-and-gas/prices-tariffs-and-benchmarks/victorian-default-offer/victorian-default-offer-price-review-2026-27" target="_blank" rel="noopener">Essential Services Commission</a>.</li>
+    <li>That average includes homes with solar panels, so the sample home uses a little less power at midday than a home without solar.</li>
+  </ul>
+  <p>Your own home could use much more or much less, and at quite different times. That changes which plans come out cheapest, most of all for plans whose price changes through the day.</p>
+
+  <h2 id="how-priced">How each plan is priced</h2>
+  <ol>
+    <li>Each half hour of your usage costs the plan's <a href="#w-usage-rate">usage rate</a> for that time of day. Times are Melbourne times, with daylight saving. Some retailers state their times in standard time all year, and the page follows them.</li>
+    <li>Some plans have <a href="#w-tiers">tiers</a>. They charge one price for the first part of each day's usage and a different price for the rest.</li>
+    <li>The <a href="#w-daily-charge">daily charge</a> is added for every day.</li>
+    <li>Your solar exports earn the plan's <a href="#w-solar-credit">solar credit</a>.</li>
+    <li>Percentage discounts come off. The page assumes that you <a href="#w-discount">pay on time</a>.</li>
+    <li><a href="#w-membership">Membership</a> and <a href="#w-greenpower">GreenPower</a> fees are added.</li>
+    <li>All prices include GST.</li>
+  </ol>
+
+  <h2 id="how-stay">The year ahead</h2>
+  <p>The list ranks plans on what they would cost you over the next year. It shows each cost as a year, a quarter or a month.</p>
+  <p>If you might move or switch again soon, use the Compare page. It also shows each plan's cost over 3 months, 6 months and 2 years. It prices a short stay on the same months of last year, so the season counts.</p>
+
+  <h2 id="how-credits">Sign-up credits</h2>
+  <p>Retailers describe <a href="#w-signup-credit">sign-up credits</a> in their own words. The page reads the amount, and when it is paid, from these words. Each card quotes the words.</p>
+  <p>A credit pays the bill that it arrives on, then the next bills, until it is used up. If you leave the plan before that, you usually lose the rest. So, with "Include sign-up credits in the cost" on, a credit counts only for the bills in the time you stay. In the list, that time is one year. Some examples:</p>
+  <ul>
+    <li>A $200 credit on the first bill counts in full if your bills add up to $200 or more.</li>
+    <li>On the Compare page, in a 3-month stay, a credit that arrives on the third bill can pay only the third bill.</li>
+    <li>In a 3-month stay, a credit paid as $25 a month for six months counts as $75.</li>
+  </ul>
+  <p>Check each credit with the retailer before you sign up.</p>
+
+  <h2 id="how-compare">Comparing plans</h2>
+  <p>Press "Compare" on two to four plans. The <a href="#compare">Compare</a> page then shows them side by side: each part of the cost, and the prices. Green marks the best value in each row and the cheapest plan overall.</p>
+  <p>A chart shows what you would pay month by month, on last year's usage. It opens on the difference from the cheapest plan that you compare, or from your current plan if you compare it. This makes small differences easy to see. A sign-up credit shows as smaller bills at the start.</p>
+  <p>The Compare page also shows the cost of each plan over 3 months, 6 months, 1 year and 2 years.</p>
+  <p>To compare plans from one retailer, choose the retailer in the list's "Retailer" box. "Best plan from each retailer only" shows the cheapest plan of each retailer. Each card then has a link to see all of that retailer's plans.</p>
+
+  <h2 id="how-eligibility">Plans you may not be able to get</h2>
+  <p>Some plans are only for people with a battery, an electric car, a seniors card, a particular bank or a membership. The page hides these plans until you tick the box for them. Plans for <a href="#w-old-meter">old-style meters</a> also stay hidden until you tick that box, because a usage file comes from a <a href="#w-smart-meter">smart meter</a>. If your file shows no solar, plans made for solar homes stay hidden until you switch them on.</p>
+
+  <h2 id="how-default">The Default Offer comparison</h2>
+  <p>The <a href="#w-vdo">Victorian Default Offer</a> is a price that Victoria's energy regulator sets. Each card shows how much more or less the plan would cost you than the Default Offer of the same kind. The two kinds are <a href="#w-flat">same price all day</a> and <a href="#w-tou">price varies by time of day</a>.</p>
+
+  <h2 id="how-current">Your current plan and switching advice</h2>
+  <p>Add your current plan: pick it from the list, or type the prices from your bill. Each card then shows the difference from your plan. The advice compares a switch now with a stay:</p>
+  <ul>
+    <li>You usually lose unused sign-up credit when you leave a plan. So unused credit counts against a switch.</li>
+    <li>A switch now wins if two amounts together are more than the credit you would lose. The two amounts are what you would save before your credit runs out, and any new sign-up credit.</li>
+    <li>If a switch does not win, the page tells you to check again when your credit runs out.</li>
+    <li>The page suggests a switch only if it saves more than $50 a year.</li>
+  </ul>
+  <p>The page then suggests a date to check again, and can put it in your calendar. If you have unused credit, the date is when the credit should run out: after that, a switch loses you nothing. If not, the date is mid-February or mid-August. Retailers often change prices after 1 July, when the Default Offer changes, so a check every six months catches most changes.</p>
+
+  <h2 id="how-not-covered">What is not covered</h2>
+  <ul>
+    <li>Networks other than United Energy, for now.</li>
+    <li>Gas.</li>
+    <li>Plans for a separate hot-water circuit (<a href="#w-controlled-load">controlled load</a>), and plans with <a href="#w-demand">demand charges</a>.</li>
+    <li>Fees that you can avoid or that you pay only once, such as paper bills, card payments and <a href="#w-connection">connection fees</a>. Each card lists them under "Rates and details".</li>
+    <li>Retailers that do not publish to the government list.</li>
+  </ul>
+
+  <h2 id="how-accuracy">How accurate it is</h2>
+  <p>I check the pricing against a separate calculation, written in a different programming language. The two agree to the cent on every plan. On my own household's bills, the estimate came within $6 a year. Still, next year will not be exactly like last year, so please treat every cost as an estimate.</p>
+
+  <h2 id="how-who">Why this exists</h2>
+  <p>I made this to make my own life easier. Working out which electricity plan suits our home, from our real usage, took far too long by hand. Once it worked, I put it online in case someone else finds it useful too.</p>
+  <p>It is free, and I get nothing from it: no ads, no referral fees and no payments from retailers. It has no link to any retailer, comparison site or government body. Claude Opus 5.5, an AI model by Anthropic, wrote most of the code and the text with me, and I checked the results.</p>
+  <p>If something looks wrong or confusing, please tell me<span class="feedback-only"> through the <a class="feedback-link" href="#" target="_blank" rel="noopener">feedback form</a></span>.</p>
+
+  <h2 id="how-limits">Not advice</h2>
+  <p>Please do not treat anything here as financial advice. It is a comparison tool that I use myself, nothing more, and nothing on it is an offer from a retailer.</p>
+  <p>The costs are estimates. They assume your next year looks like your last one, and they use the prices that retailers publish today. Both can change. The page can also get things wrong, for example when it reads a sign-up credit from a retailer's own wording.</p>
+  <p>So before you switch, read the plan's Victorian Energy Fact Sheet, and check the prices and conditions with the retailer. The retailer's contract is what you agree to, not this page. For the Victorian Government's own comparison, try <a href="https://compare.energy.vic.gov.au/" target="_blank" rel="noopener">Victorian Energy Compare</a>.</p>
+  <p>The code is shared under the MIT licence, which comes with no warranty.</p>
+</section>
+
+<!-- ======================= Page: your data ======================= -->
+<section class="page doc" id="data" data-title="Your data · Electricity plan check" hidden>
+  <h1>Your data</h1>
+  <p class="lede">The short version: your usage file never leaves your device, and I never see it. Here is everything the page does with data.</p>
+  <nav class="toc" aria-label="On this page">
+    <a href="#data-file">Your file</a><a href="#data-online">What goes online</a><a href="#data-kept">What is kept</a>
+    <a href="#data-clear">Clear your data</a><a href="#data-links">Links</a><a href="#data-offline">Offline</a>
+    <a href="#data-none">Not here</a><a href="#data-check">Check for yourself</a>
+  </nav>
+
+  <h2 id="data-file">Your usage file</h2>
+  <p>Your browser reads the file right here on your device. It is never uploaded, I never see it, and nothing about it is saved: close the page and it is gone. The file also holds your meter's ID number. The page skips it and never shows it.</p>
+
+  <h2 id="data-online">What goes online</h2>
+  <p>The page goes online for one thing: to download today's public plan prices from the government's plan list (cdr.energymadeeasy.gov.au). Those requests say nothing about you. They do not include your postcode, your usage or your answers.</p>
+  <p>To make sure of that, the page tells your browser to block every other address. This is a <a href="#w-csp">content security policy</a>. So even if I made a mistake in the code, your data could not go anywhere else.</p>
+
+  <h2 id="data-kept">What is kept on this device</h2>
+  <p>Only that public price list, for one day, so your next visit is quick. The page does not keep your file, your postcode, your ticks or anything you type.</p>
+
+  <h2 id="data-clear">Clear your data</h2>
+  <p>The site sets no cookies. Your browser's history will show which pages of the site you opened, such as "How it works", but never your file or your answers. Your browser's settings can clear that history.</p>
+  <p id="data-cleared" class="callout" hidden>Done. This site keeps nothing on this device now. It keeps prices again the next time that you check plans.</p>
+  <p>To remove the kept prices and start fresh, use this button. It also reloads the page, which forgets your file and everything you typed or ticked.</p>
+  <button type="button" id="clear" class="btn">Clear data on this device</button>
+
+  <h2 id="data-links">Links</h2>
+  <p>Links to retailers and "Search for its fact sheet" links open only when you click them. A fact-sheet search sends DuckDuckGo the plan's ID and the retailer's name, and nothing else.</p>
+  <p>"Add to my calendar" makes a calendar file on your device; nothing goes online. The Google Calendar link sends Google only the reminder's date and title.</p>
+  <p class="feedback-only">The <a class="feedback-link" href="#" target="_blank" rel="noopener">feedback form</a> is a Google Form. It gets only what you choose to type into it, and you do not need to sign in.</p>
+
+  <h2 id="data-offline">Using it offline</h2>
+  <p>You can save the page to your computer and open it from there; it works the same way. It needs the internet once, to download prices. After that it runs entirely on your device. With no internet, it uses the last prices it kept and tells you how old they are.</p>
+
+  <h2 id="data-none">What is not here</h2>
+  <p>No accounts, no sign-up, no cookies, no analytics, no ads and no tracking. I do not know who uses it, and I would rather keep it that way.</p>
+
+  <h2 id="data-check">Check for yourself</h2>
+  <p>The whole site is one file of open-source code. You can read it on <a href="https://github.com/yobin-tim/vic-energy-plan-check" target="_blank" rel="noopener">GitHub</a>, or with "View page source" in your browser.</p>
+</section>
+
+<!-- ======================= Page: words explained ======================= -->
+<section class="page doc" id="words" data-title="Words explained · Electricity plan check" hidden>
+  <h1>Words explained</h1>
+  <p class="lede">Plain meanings for the words on this site.</p>
+  <dl class="words">
+    <dt id="w-network">Network</dt>
+    <dd>The company that owns the poles and wires in your area and reads your meter. In south-east Melbourne, it is United Energy. You cannot choose it. It comes with your address.</dd>
+    <dt id="w-retailer">Retailer</dt>
+    <dd>The company that sells you electricity and sends your bill. You can choose it.</dd>
+    <dt id="w-plan">Plan and plan ID</dt>
+    <dd>A retailer's set of prices and conditions. Each plan has an ID, such as OVO803467MR. You can give this ID to the retailer.</dd>
+    <dt id="w-kwh">kWh</dt>
+    <dd>A kilowatt-hour, the unit that electricity is sold in. A typical home uses 10 to 20 kWh a day.</dd>
+    <dt id="w-daily-charge">Daily charge</dt>
+    <dd>A fixed amount for each day that you are connected, however much you use. Another name for it is supply charge.</dd>
+    <dt id="w-usage-rate">Usage rate</dt>
+    <dd>The price of each kWh that you take from the grid.</dd>
+    <dt id="w-flat">Same price all day</dt>
+    <dd>One usage rate at all hours. Other names for it are flat rate and single rate.</dd>
+    <dt id="w-tou">Price varies by time of day</dt>
+    <dd>Different usage rates at different hours. The highest rate is usually in the late afternoon and evening. Another name for it is time of use.</dd>
+    <dt id="w-tiers">Tiers</dt>
+    <dd>Different prices for the first kWh and the later kWh of each day. An example is free power for the first 24 kWh at midday.</dd>
+    <dt id="w-solar">Solar exports</dt>
+    <dd>Power that your solar panels send to the grid when your home does not use it.</dd>
+    <dt id="w-solar-credit">Solar credit</dt>
+    <dd>What a retailer pays you for each kWh of solar power that you send to the grid. Another name for it is feed-in tariff.</dd>
+    <dt id="w-signup-credit">Sign-up credit</dt>
+    <dd>An amount that a retailer takes off your bills when you join. Some retailers pay it at once, and some pay it in parts over several bills. If you leave before it is used up, you usually lose the rest.</dd>
+    <dt id="w-discount">Pay-on-time discount</dt>
+    <dd>A percentage off your bill if you pay by the due date.</dd>
+    <dt id="w-membership">Membership fee</dt>
+    <dd>A regular fee that some retailers charge for a plan, such as Amber's $25 a month.</dd>
+    <dt id="w-greenpower">GreenPower</dt>
+    <dd>An extra payment so that your retailer buys certified renewable energy for you.</dd>
+    <dt id="w-vdo">Victorian Default Offer</dt>
+    <dd>A price that the Essential Services Commission, Victoria's energy regulator, sets each year. It protects people who have never chosen a plan.</dd>
+    <dt id="w-standing">Standing and market offers</dt>
+    <dd>A standing offer is a retailer's basic plan at the Default Offer price. A market offer is any other plan. A market offer usually costs less.</dd>
+    <dt id="w-smart-meter">Smart meter</dt>
+    <dd>A meter that records your use every 5 or 30 minutes and sends the data to your network. Almost every Victorian home has one.</dd>
+    <dt id="w-old-meter">Old-style meter</dt>
+    <dd>A meter that only keeps a running total. A person reads it on site. Other names for it are basic meter and accumulation meter.</dd>
+    <dt id="w-usage-file">Usage file</dt>
+    <dd>A download of your smart meter readings from your network's website, as a .csv file. Its format is a version of the national NEM12 format.</dd>
+    <dt id="w-controlled-load">Controlled load</dt>
+    <dd>A circuit with its own meter, usually for off-peak hot water, with its own lower rate.</dd>
+    <dt id="w-demand">Demand charge</dt>
+    <dd>A charge for your highest use in any half hour of the month, not for your total use.</dd>
+    <dt id="w-connection">Connection and disconnection fees</dt>
+    <dd>Charges to turn the power on when you move in, or off when you move out. Your network sets most of them. They are often free when the network can switch a smart meter from a distance.</dd>
+    <dt id="w-exit-fee">Exit fee</dt>
+    <dd>A fee for leaving a plan early. Most plans have none.</dd>
+    <dt id="w-cdr">Consumer Data Right</dt>
+    <dd>The law that makes retailers publish their plans in a standard, public format. This site reads that data.</dd>
+    <dt id="w-csp">Content security policy</dt>
+    <dd>A rule that a web page gives your browser about which addresses the page can contact. This site allows only the government plan list.</dd>
+  </dl>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <nav aria-label="Site">
+    <a href="#check">Check plans</a><a href="#compare">Compare</a><a href="#how">How it works</a><a href="#data">Your data</a><a href="#words">Words explained</a>
+    <a href="#data-clear">Clear my data</a>
+    <a class="feedback-link feedback-only" href="#" target="_blank" rel="noopener">Send feedback</a>
+    <a id="save" href="index.html" download="electricity-plan-check.html">Save this page to use offline</a>
+    <a href="https://github.com/yobin-tim/vic-energy-plan-check" target="_blank" rel="noopener">Source code</a>
+  </nav>
+  <p>I made this for my own household and shared it in case it helps you. Estimates only, not financial advice (<a href="#how-limits">the limits</a>).</p>
+  <p>Prices come from the government's public plan list. No sign-up, no tracking. Made with Claude Opus 5.5, an AI model by Anthropic.</p>
+</footer>
+
+<script id="engine">
+"use strict";
+// ==== Pricing engine ===================================================================
+// A line-by-line port of reference/rank_plans.py. Pure functions only: no page, no network.
+// reference/compare_engine.mjs runs this block in Node to check it against the Python output.
+//
+// Conventions (checked 7 Oct 2026):
+//   - Plan usage and daily charges exclude GST, so they are multiplied by 1.1.
+//     Solar feed-in rates are GST-free.
+//   - Plan time windows are Melbourne local time (with daylight saving); the meter file is
+//     Australian Eastern Standard Time all year. Each half hour is converted before matching.
+//   - Tiered blocks ("first 15 kWh a day at X, then Y") reset every meter day.
+//   - Percentage discounts are assumed earned and apply to usage + daily charge, not solar.
+
+const DOW = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const DAY_MS = 86400000;
+
+// ---- 1. Meter file --------------------------------------------------------------------
+// NEM12-style file: a "200" row starts a channel (E1 = power from the grid, B1 = solar sent
+// out), and each "300" row holds one day of readings for that channel. The NMI (the meter's
+// ID, in the 200 row and the file name) is never read into memory.
+function parseMeter(text) {
+  const raw = { E1: new Map(), B1: new Map() };
+  const other = new Set();
+  let ch = null, n = 0, unit = 1;
+  for (const line of text.split(/\r?\n/)) {
+    const r = line.split(",");
+    if (r[0] === "200") {
+      const uom = (r[7] || "").toUpperCase();
+      ch = r[4] || r[3];                       // NMI suffix, e.g. "E1"
+      n = 1440 / parseInt(r[8], 10);           // readings per day (288 for 5-minute data)
+      unit = uom === "WH" ? 0.001 : 1;         // some files use Wh instead of kWh
+      if (!raw[ch] && (uom === "KWH" || uom === "WH")) other.add(ch);
+      if (!(n >= 48 && n % 48 === 0)) throw new Error("This file's reading interval is not supported.");
+    } else if (r[0] === "300" && raw[ch]) {
+      const v = r.slice(2, 2 + n).map(Number);
+      // A day without a full set of readings is treated as missing (it is filled in by scaling).
+      if (v.length === n && v.every(Number.isFinite)) raw[ch].set(r[1], v.map(x => x * unit));
+    }
+  }
+  if (!raw.E1.size) throw new Error("This does not look like a United Energy usage file.");
+  if (other.size) throw new Error("This file has a second meter (often a separate hot-water circuit). That is not supported yet.");
+
+  // Window: the 365 days ending on the last day in the file.
+  const last = [...raw.E1.keys()].sort().pop();
+  const end = Date.UTC(+last.slice(0, 4), +last.slice(4, 6) - 1, +last.slice(6, 8)) + DAY_MS;
+  const start = end - 365 * DAY_MS;
+  const step = n / 48;                         // readings per half hour
+  const days = [];
+  for (let t = start; t < end; t += DAY_MS) {
+    const d = new Date(t);
+    const key = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
+    const E = raw.E1.get(key);
+    if (!E) continue;
+    const B = raw.B1.get(key);                 // no B1 channel means no solar
+    const imp = new Float64Array(48), exp = new Float64Array(48);
+    for (let i = 0; i < 48; i++) {
+      for (let k = i * step; k < (i + 1) * step; k++) { imp[i] += E[k]; if (B) exp[i] += B[k]; }
+    }
+    days.push({ imp, exp, ...localTimes(t) });
+  }
+  return {
+    days,
+    scale: 365 / days.length,                  // annualise over any missing days
+    first: start, last: end - DAY_MS,
+    hasSolar: days.some(d => d.exp.some(x => x > 0)),
+  };
+}
+
+function pad(x) { return String(x).padStart(2, "0"); }
+
+// For one meter day (midnight AEST = UTC+10), the Melbourne local weekday, half-hour slot and
+// minute of each of its 48 half hours, plus the local month-day at midday (picks the season).
+// sdow is the weekday on standard time (AEST), for plans whose times are stated in AEST.
+let melFormat = null;
+function melOffset(utcMs) {
+  melFormat ||= new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const p = {};
+  for (const x of melFormat.formatToParts(new Date(utcMs))) p[x.type] = +x.value;
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - utcMs;
+}
+function localTimes(dayUtcMidnight) {
+  const t0 = dayUtcMidnight - 10 * 3600000;
+  // Daylight saving only changes in the small hours, so one lookup per day suffices unless
+  // the day starts and ends on different offsets (the two changeover days each year).
+  const o0 = melOffset(t0), o1 = melOffset(t0 + 47 * 1800000);
+  const dow = new Uint8Array(48), slot = new Uint8Array(48), mins = new Uint16Array(48);
+  let mmdd = "";
+  for (let i = 0; i < 48; i++) {
+    const u = t0 + i * 1800000;
+    const loc = new Date(u + (o0 === o1 ? o0 : melOffset(u)));
+    dow[i] = (loc.getUTCDay() + 6) % 7;        // Monday = 0, as in DOW
+    mins[i] = loc.getUTCHours() * 60 + loc.getUTCMinutes();
+    slot[i] = mins[i] / 30;                    // Melbourne offsets are whole hours
+    if (i === 24) mmdd = `${pad(loc.getUTCMonth() + 1)}-${pad(loc.getUTCDate())}`;
+  }
+  const sdow = new Uint8Array(48).fill((new Date(dayUtcMidnight).getUTCDay() + 6) % 7);
+  return { dow, slot, mins, mmdd, sdow };
+}
+// On standard time, half hour i of a meter day is simply slot i, starting at minute 30 * i.
+const STD_SLOT = Uint8Array.from({ length: 48 }, (_, i) => i);
+const STD_MINS = Uint16Array.from({ length: 48 }, (_, i) => i * 30);
+
+// ---- 2. Reading plan structures ---------------------------------------------------------
+// "15:00", "9:00" or "1500" to minutes after midnight.
+function hhmm(t) {
+  const s = String(t);
+  const [h, m] = s.includes(":") ? s.split(":") : [s.slice(0, 2), s.slice(2, 4)];
+  return parseInt(h, 10) * 60 + parseInt(m, 10);
+}
+
+function inSeason(tp, mmdd) {
+  const s = tp.startDate || "01-01", e = tp.endDate || "12-31";
+  return s <= e ? (s <= mmdd && mmdd <= e) : (mmdd >= s || mmdd <= e);
+}
+
+// For a list of time-of-use bands, which band covers each weekday x half hour (-1 = none).
+// The first band that matches wins, as in the Python. Each window covers [start, end);
+// "00:00" as an end means midnight, and a window may wrap past midnight.
+function bandTable(bands, key) {
+  const windows = bands.map(b => (b[key] || []).map(w => {
+    const e = hhmm(w.endTime);
+    return { days: w.days || DOW, s: hhmm(w.startTime), e: e === 0 ? 1440 : e };
+  }));
+  const t = new Int16Array(7 * 48);
+  for (let d = 0; d < 7; d++) for (let slot = 0; slot < 48; slot++) {
+    const m = slot * 30;
+    t[d * 48 + slot] = windows.findIndex(ws => ws.some(w =>
+      w.days.includes(DOW[d]) && (w.s < w.e ? w.s <= m && m < w.e : m >= w.s || m < w.e)));
+  }
+  return t;
+}
+
+// A few plans state a daily cap 365 times too big ("first 3,650 kWh a day" for a 10 kWh cap).
+// Such caps are yearly totals, so they are read as cap / 365 a day (8 Oct 2026).
+function blockVolume(v) {
+  const n = Number(v);
+  return n >= 5 * 365 && n % 365 === 0 ? n / 365 : n;
+}
+
+// Volume blocks as cumulative kWh ranges: block k covers [lo, hi) at price p.
+function tiers(blocks) {
+  let lo = 0;
+  return blocks.map(b => {
+    const hi = b.volume ? lo + blockVolume(b.volume) : Infinity;
+    const t = { lo, hi, p: Number(b.unitPrice) };
+    lo = hi;
+    return t;
+  });
+}
+
+// Cost of using kWh more, given soFar kWh already used today in this band.
+// Called about six million times per file, so it is written for speed. The one-block case
+// is the general formula with lo = 0 and hi = Infinity, so the arithmetic is unchanged.
+function tierCost(ts, soFar, kwh) {
+  const a = soFar, b = soFar + kwh;
+  if (ts.length === 1) return Math.max(0, b - Math.max(a, 0)) * ts[0].p;
+  let cost = 0;
+  for (let k = 0; k < ts.length; k++) {
+    const t = ts[k];
+    cost += Math.max(0, Math.min(b, t.hi) - Math.max(a, t.lo)) * t.p;
+  }
+  return cost;
+}
+
+// A daytime rebate described only in words, e.g. "Credit of 13.15c/kWh ... between 11am and 4pm".
+const REBATE_RE = /([\d.]+)c\/kWh.*?(\d{1,2})\s*(am|pm)\s*(?:-|and|to)\s*(\d{1,2})\s*(am|pm)/;
+function hour12(h, ampm) { return (parseInt(h, 10) % 12) + (ampm === "pm" ? 12 : 0); }
+
+// ---- 3. Price one plan ------------------------------------------------------------------
+// Yearly cost in dollars including GST, or null if the plan cannot be priced.
+function priceContract(c, meter) {
+  const p = priceParts(c, meter);
+  return p && p.total;
+}
+
+// The same cost in parts, for the side-by-side comparison: daily charges, usage, discounts,
+// solar credits and fees, each in dollars including GST, and their total. With perDay (an
+// array as long as meter.days), it also writes each day's own cost into it, unscaled and
+// with 1/365 of the yearly fees, so bills can be added up month by month.
+function priceParts(c, meter, perDay) {
+  const tps = c.tariffPeriod || [];
+  if (!tps.length || tps.some(tp => tp.rateBlockUType !== "singleRate" && tp.rateBlockUType !== "timeOfUseRates")) return null;
+
+  // Prepare each season once: its band lookup table and its price blocks.
+  const seasons = tps.map(tp => tp.rateBlockUType === "singleRate"
+    ? { tp, table: null, blocks: [tiers(tp.singleRate.rates)] }
+    : { tp, table: bandTable(tp.timeOfUseRates, "timeOfUse"), blocks: tp.timeOfUseRates.map(r => tiers(r.rates)) });
+
+  const fit0 = (c.solarFeedInTariff || [])[0];
+  const fitSingle = fit0 && fit0.tariffUType === "singleTariff" ? tiers(fit0.singleTariff.rates) : null;
+  const fitBands = fit0 && !fitSingle ? fit0.timeVaryingTariffs : null;
+  const fitTable = fitBands ? bandTable(fitBands, "timeVariations") : null;
+  const fitTiers = fitBands ? fitBands.map(r => tiers(r.rates)) : null;
+
+  const rebates = [];
+  for (const x of c.discounts || []) {
+    if (x.methodUType !== "percentOfUse") continue;
+    const m = REBATE_RE.exec(x.description || "");
+    if (m) rebates.push({ cents: Number(m[1]), from: hour12(m[2], m[3]) * 60, to: hour12(m[4], m[5]) * 60 });
+  }
+
+  let usage = 0, supply = 0, fit = 0, rebate = 0;
+  // Some plans state their times in standard time all year (contract timeZone "AEST"; ENGIE
+  // and Origin say "billed in AEST"). They are matched on the meter's own AEST clock.
+  const std = c.timeZone === "AEST";
+  // Each day's parts, kept only when perDay is asked for. They are differences of the running
+  // sums, so the totals are added in exactly the same order as before (and as the Python).
+  const n = meter.days.length;
+  const dayUse = perDay && new Float64Array(n), daySupply = perDay && new Float64Array(n);
+  const dayFit = perDay && new Float64Array(n), dayRebate = perDay && new Float64Array(n);
+  for (let di = 0; di < n; di++) {
+    const day = meter.days[di];
+    const dow = std ? day.sdow : day.dow, slot = std ? STD_SLOT : day.slot, mins = std ? STD_MINS : day.mins;
+    const before = perDay && [usage, supply, fit, rebate];
+    let si = tps.findIndex(tp => inSeason(tp, day.mmdd));
+    if (si < 0) si = 0;
+    const s = seasons[si];
+    supply += Number(s.tp.dailySupplyCharge) || 0;
+    const used = new Float64Array(s.blocks.length);       // kWh used today per band (daily tiers)
+    for (let i = 0; i < 48; i++) {
+      const band = s.table ? s.table[dow[i] * 48 + slot[i]] : 0;
+      if (band < 0) return null;                           // a gap in the plan's windows
+      usage += tierCost(s.blocks[band], used[band], day.imp[i]);
+      used[band] += day.imp[i];
+    }
+    // Solar credit for the day
+    if (fitSingle) {
+      let total = 0;
+      for (let i = 0; i < 48; i++) total += day.exp[i];
+      fit += tierCost(fitSingle, 0, total);
+    } else if (fitTable) {
+      const fused = new Float64Array(fitTiers.length);
+      for (let i = 0; i < 48; i++) {
+        const j = fitTable[dow[i] * 48 + slot[i]];
+        if (j < 0) continue;
+        fit += tierCost(fitTiers[j], fused[j], day.exp[i]);
+        fused[j] += day.exp[i];
+      }
+    }
+    for (const r of rebates) {
+      let kwh = 0;
+      for (let i = 0; i < 48; i++) if (r.from <= mins[i] && mins[i] < r.to) kwh += day.imp[i];
+      rebate += kwh * r.cents / 100;                     // same order as the Python
+    }
+    if (perDay) {
+      dayUse[di] = usage - before[0]; daySupply[di] = supply - before[1];
+      dayFit[di] = fit - before[2]; dayRebate[di] = rebate - before[3];
+    }
+  }
+  usage = usage * 1.1 * meter.scale;
+  supply = supply * 1.1 * meter.scale;
+  fit *= meter.scale;
+  rebate *= meter.scale;
+  let pctBill = 0, pctUse = 0;
+  for (const x of c.discounts || []) {
+    if (x.methodUType === "percentOfBill") pctBill += Number(x.percentOfBill.rate);
+    if (x.methodUType === "percentOfUse" && !/c\/kWh/.test(x.description || "")) pctUse += Number(x.percentOfUse.rate);
+  }
+  const discount = pctBill * (usage + supply) + pctUse * usage + rebate;
+  const yearFees = yearlyFees(c);
+  if (perDay) {
+    // One day on the same terms as the total: the percentage discounts are per dollar, so
+    // they come off each day's usage and daily charge in the same proportion.
+    for (let di = 0; di < n; di++) {
+      perDay[di] = dayUse[di] * 1.1 * (1 - pctBill - pctUse) + daySupply[di] * 1.1 * (1 - pctBill)
+                 - dayRebate[di] - dayFit[di] + yearFees / 365;
+    }
+  }
+  const fees = yearFees * (meter.feeShare ?? 1);           // fees prorated to a stay
+  return { usage, supply, discount, fit, fees,
+           total: usage + supply - discount - fit + yearlyFees(c) * (meter.feeShare ?? 1) };
+}
+
+// Recurring fees that everyone on the plan pays. Amounts include GST (checked against the
+// text of Amber's and ENGIE's fees). Paper-bill, payment, connection and exit fees are
+// avoidable or one-off, so they are not counted. Tango's "COMMS Type 3-4 metering charge (if
+// applicable)" is not counted: Victoria's metering order makes a remotely read smart meter a
+// type 5 installation, run by the network, and the market codes it VICAMI, not COMMS
+// (checked 8 Oct 2026).
+const PER_YEAR = { DAILY: 365, WEEKLY: 52, MONTHLY: 12, BIANNUAL: 2 };
+function yearlyFees(c) {
+  let total = 0;
+  for (const x of c.fees || []) {
+    const d = x.description || "";
+    const amount = Number(x.amount) || 0;
+    if (x.type === "MEMBERSHIP" || /annual\s+membership/i.test(d)) total += amount * (PER_YEAR[x.term] || 1);
+    else if (d.includes("GreenPower") && /daily\s+charge/i.test(d)) total += amount * 365;
+  }
+  return total;
+}
+
+// ---- 4. Sign-up credits -----------------------------------------------------------------
+// Credits are free text, so this is a best guess; the card quotes the wording it used.
+// Each incentive is read on its own (kept identical in reference/rank_plans.py):
+//   - referral rewards and guarantees are skipped (ENGIE's $500 is paid only if the power
+//     is late, and a referral needs a friend);
+//   - "$150 sign up credit", "$175 (inc GST) credit", "$100 Prepaid Visa Card" and
+//     "credit of $150" all count.
+// One-off fixed-amount discounts that are not referral offers count too. The largest one
+// counts, so the same credit described twice is not counted twice.
+const CREDIT_RES = [
+  /\$\s?(\d{2,4})(?:\.\d\d)?\s*(?:\([^)]*\)\s*)?(?:[\w-]+\s){0,4}?(?:credit|bonus|reward|gift|e-?gift|card|cash)/gi,
+  /credit of \$\s?(\d{2,4})/gi,
+];
+const NOT_A_CREDIT = /\brefer|guarantee/i;
+function signupCredit(c) {
+  let amount = 0, text = "";
+  for (const inc of c.incentives || []) {
+    if (NOT_A_CREDIT.test(`${inc.displayName || ""} ${inc.description || ""}`)) continue;
+    const t = ["displayName", "description", "eligibility"].map(k => (inc[k] == null ? "" : String(inc[k]))).join(" ");
+    for (const re of CREDIT_RES) for (const m of t.matchAll(re)) {
+      if (Number(m[1]) > amount) {
+        amount = Number(m[1]);
+        // Quote the description and the conditions together: the timing is often only in the
+        // conditions (Origin: "if this plan is still active on 31st December 2026").
+        text = [...new Set([inc.description, inc.eligibility].filter(Boolean))].join(" ") || inc.displayName || m[0];
+      }
+    }
+  }
+  for (const x of c.discounts || []) {
+    if (x.methodUType !== "fixedAmount" || /\brefer/i.test(`${x.displayName} ${x.description}`)) continue;
+    const a = Number(x.fixedAmount && x.fixedAmount.amount);
+    if (a > amount) { amount = a; text = x.description || x.displayName || ""; }
+  }
+  return { amount, text, timing: creditTiming(text) };
+}
+
+// When a credit is paid, from its wording: "first bill" or no word (at once), "applied across
+// the first six electricity bills" (monthly instalments), "applied 90 days after" (later).
+const NUMBER_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+                       nine: 9, ten: 10, eleven: 11, twelve: 12 };
+const toNumber = w => NUMBER_WORDS[w.toLowerCase()] || parseInt(w, 10) || 0;
+const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august",
+                     "september", "october", "november", "december"];
+function creditTiming(text) {
+  const t = String(text).replace(/\s+/g, " ");
+  let m = /across (?:the )?(?:first )?(\w+) (\w+ )?(?:bills|months)/i.exec(t);
+  if (m && toNumber(m[1]) > 1) {
+    const n = toNumber(m[1]) * (/quarterly/i.test(m[2] || "") ? 3 : 1);   // quarterly bills: 3 months each
+    return { instalments: n, paidBy: n };
+  }
+  m = /(\d{1,2})(?:st|nd|rd|th)? (january|february|march|april|may|june|july|august|september|october|november|december) (\d{4})/i.exec(t);
+  if (m) {                                     // paid after a stated date, e.g. "active on 31st December 2026"
+    const when = new Date(+m[3], MONTH_NAMES.indexOf(m[2].toLowerCase()), +m[1]);
+    return { instalments: 1, paidBy: Math.max(1, Math.ceil((when - Date.now()) / (30.44 * DAY_MS))) };
+  }
+  m = /(\d+) days after/i.exec(t);
+  if (m) return { instalments: 1, paidBy: Math.ceil(parseInt(m[1], 10) / 30) };
+  m = /after (\w+) months/i.exec(t);
+  if (m && toNumber(m[1])) return { instalments: 1, paidBy: toNumber(m[1]) };
+  return { instalments: 1, paidBy: 1 };
+}
+// How much of a sign-up credit each monthly bill of a stay uses. A credit lands on a bill (the
+// first, a later one, or in equal parts on the first few) and pays that bill and the bills
+// after it. Whatever is left when the stay ends is lost: unused credit is not refunded (AGL,
+// 7 Oct 2026). A bill below $0 uses none of it.
+function creditUse(bills, amount, timing) {
+  let left = 0;
+  return bills.map((bill, j) => {
+    const k = j + 1;                           // bill number, 1 = the first bill
+    if (timing.instalments > 1) { if (k <= timing.instalments) left += amount / timing.instalments; }
+    else if (k === Math.max(1, timing.paidBy)) left += amount;
+    const use = Math.min(left, Math.max(0, bill));
+    left -= use;
+    return use;
+  });
+}
+
+// The bill for each month of a stay that starts today, from what each day cost on the same
+// date last year (perDay, in the order of meter.days). A date missing from the file costs an
+// average day. The months are then moved up or down by the same amount so that they add up
+// to `total`, the stay's cost in the list, and the chart agrees with the list.
+function stayBills(meter, perDay, months, total, today = new Date()) {
+  const byDate = new Map();
+  let sum = 0;
+  meter.days.forEach((d, i) => { byDate.set(d.mmdd, perDay[i]); sum += perDay[i]; });
+  const average = sum / meter.days.length;
+  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const bills = [];
+  for (let m = 0; m < months; m++) {
+    let bill = 0;
+    for (let t = addMonths(start, m), end = addMonths(start, m + 1); t < end; t += DAY_MS) {
+      const d = new Date(t);
+      bill += byDate.get(`${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`) ?? average;
+    }
+    bills.push(bill);
+  }
+  const shift = (total - bills.reduce((a, b) => a + b, 0)) / months;
+  return bills.map(b => b + shift);
+}
+
+// ---- 5. What a plan needs that a household may not have ------------------------------------
+// Read from the plan's eligibility text (and "business" in the plan name). The page lists a
+// plan only when the household has ticked everything it needs: some Flow Power plans need
+// both a battery and an electric car. Free sign-ups (Everyday Rewards, Velocity, Qantas
+// Frequent Flyer, BP Rewards, Kogan's free FIRST) are not needs, since anyone can join.
+// "oldMeter" has its own tick box: a usage file means a smart meter, but a household may
+// still want to see those plans. "solar" has its own switch.
+const NEEDS = [
+  ["oldMeter", "Old-style (non-smart) meter", /basic accumulation/i],
+  ["solar", "Solar panels", /customers with (?:a )?solar (?:system|panels)|solar PV system must|residential solar customers|Qualifying Solar System|installing a solar system/i],
+  ["battery", "Home battery", /\bbatter(y|ies)\b/i],
+  ["ev", "Electric car", /electric vehicle|\bP?HEV\b|\bEV\b/i],
+  ["seniors", "Seniors or concession card", /senior|concession|\bpension/i],
+  ["moving", "Moving house", /must be moving|moving house/i],
+  // "small business customers" is skipped: only Flipped's old-meter "Anytime" plans say it,
+  // and the feed lists them as residential plans (read as a copy error).
+  ["business", "Business at home", /(?<!small )business (customers|flyer)|home business/i],
+  ["racv", "RACV member", /RACV member/i],
+  ["first", "Paid Kogan FIRST member", /annual FIRST membership/i],
+  ["nab", "Bank with NAB", /NAB personal banking/i],
+  ["westpac", "Bank with Westpac", /Westpac customers/i],
+  ["commbank", "Bank with CommBank", /Commonwealth Bank/i],
+  ["gas", "Gas from the same retailer", /bundled with .{0,40}gas/i],
+  ["buySolar", "Buying solar panels", /purchase an eligible solar/i],
+];
+// Eligibility text in one line: the feed breaks lines mid-sentence ("basic\naccumulation").
+function eligibilityText(p) {
+  return ((p.electricityContract || {}).eligibility || []).map(e => e.information || e.description || "").join(" ").replace(/\s+/g, " ");
+}
+function planNeeds(p) {
+  const text = eligibilityText(p);
+  const needs = NEEDS.filter(n => n[2].test(text)).map(n => n[0]);
+  if (/\bbusiness\b/i.test(p.displayName || "") && !needs.includes("business")) needs.push("business");
+  // Offers only for a retailer's existing customers, e.g. "eligible existing residential AGL customers"
+  const m = /eligible existing residential (.{1,40}?) customers/i.exec(text);
+  if (m) needs.push("existing:" + m[1]);
+  return needs;
+}
+function needLabel(key) {
+  if (key.startsWith("existing:")) return "Already with " + key.slice(9);
+  const n = NEEDS.find(x => x[0] === key);
+  return n ? n[1] : key;
+}
+
+// Some plans can only be bought through one comparison site or sales agent, e.g. "Offer only
+// available through iSelect." The card names it, so nobody looks for the plan at the retailer.
+const CHANNEL_RE = /(?:only available (?:when signing up )?through|available by signing up with) ([^.]+?)(?:\s+and\b|\.|$)/i;
+function signupChannel(p) {
+  const m = CHANNEL_RE.exec(eligibilityText(p));
+  return m ? m[1].slice(0, 60) : "";
+}
+
+function servesPostcode(p, postcode) {
+  const g = p.geography || {};
+  if ((g.excludedPostcodes || []).includes(postcode)) return false;
+  const inc = g.includedPostcodes || [];
+  return !inc.length || inc.includes(postcode);
+}
+
+// Plans only for people new to that retailer, e.g. "New to AGL" or "new AGL customers only".
+// Used to hide them when that retailer is the household's current one.
+function newCustomersOnly(p) {
+  if (/\bnew to\b/i.test(p.displayName || "")) return true;
+  return eligibilityText(p).split(/(?<=\.)\s/)
+    .some(s => /\bnew (?:[A-Z][\w&]* )?(?:[Rr]esidential )?customers?\b|\bnew and\/or moving\b/.test(s) && !/existing/i.test(s));
+}
+
+// ---- 7. Pricing a stay -------------------------------------------------------------------
+// The coming months, priced on the same months of last year's usage. 12 months is the whole
+// file (the same as the yearly price); 24 is two years of it. Yearly fees are prorated.
+// The same day n months later, clamped to the month's last day (31 Jan + 1 month = 28 Feb).
+function addMonths(ms, n) {
+  const d = new Date(ms);
+  const first = Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1);
+  const f = new Date(first);
+  const last = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)).getUTCDate();
+  return Date.UTC(f.getUTCFullYear(), f.getUTCMonth(), Math.min(d.getUTCDate(), last));
+}
+function stayView(meter, months, today = new Date()) {
+  if (months >= 12) return { days: meter.days, scale: meter.scale * months / 12, feeShare: months / 12,
+                             stayDays: 365 * months / 12, coverage: 1 };
+  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = addMonths(start, months);
+  const want = new Set();
+  let n = 0;
+  for (let t = start; t < end; t += DAY_MS, n++) {
+    const d = new Date(t);
+    want.add(`${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`);
+  }
+  const days = meter.days.filter(d => want.has(d.mmdd));
+  const coverage = days.length / n;
+  // A short file that misses most of these months uses the yearly average instead.
+  if (coverage < 0.5) return { days: meter.days, scale: meter.scale * n / 365, feeShare: n / 365, stayDays: n, coverage, fallback: true };
+  return { days, scale: n / days.length, feeShare: n / 365, stayDays: n, coverage };
+}
+
+// ---- 8. A sample home ----------------------------------------------------------------------
+// For people without a usage file. Two public sources, both checked on 8 Oct 2026:
+//   - How much a home uses in each season, by people in the home: Frontier Economics for the
+//     Australian Energy Regulator, "Residential energy consumption benchmarks" (9 Dec 2020),
+//     Table 17, Victoria, climate zone 6 (Melbourne). kWh for summer (Dec-Feb), autumn
+//     (Mar-May), winter (Jun-Aug) and spring (Sep-Nov). The report gives no split by gas.
+//   - When in the day and year a home uses it: all homes on United Energy's network, grid
+//     use (imports) in 2024 and 2025, from AEMO's Victorian disaggregated 5-minute load data,
+//     published by the Essential Services Commission with its 2026-27 Default Offer review.
+//     It includes homes with solar panels, so midday use is a little low for a home without.
+const SAMPLE_SEASONS = { 1: [674, 684, 927, 668], 2: [1112, 1125, 1493, 1110], 3: [1143, 1165, 1606, 1163],
+                         4: [1324, 1338, 1821, 1322], 5: [1686, 1718, 2245, 1702] };
+// One row per month and day type (January weekdays, January weekends, February weekdays, ...):
+// the average day's use in 48 half hours on standard time (AEST, as in usage files), in parts of
+// 10,000. SAMPLE_LEVEL is each row's daily use relative to the average day (1000 = average).
+const SAMPLE_SHAPE = [
+  [182,164,151,143,137,133,130,129,130,133,139,144,147,152,161,164,172,175,180,182,186,190,195,201,205,209,215,222,230,240,253,267,285,306,320,323,319,311,303,296,288,275,255,232,210,190,222,204],
+  [171,153,141,133,127,122,119,117,116,116,119,120,121,126,138,148,161,170,180,188,198,207,217,225,231,238,243,250,255,262,271,285,299,315,322,322,318,311,303,294,285,271,252,231,209,189,214,197],
+  [175,159,148,140,135,131,129,128,130,133,142,156,169,173,169,161,165,165,169,171,176,181,188,194,200,207,213,221,229,241,262,281,299,318,328,334,325,319,311,303,292,273,249,224,201,181,210,192],
+  [158,143,132,125,120,116,113,112,111,112,115,120,126,132,143,150,162,168,176,182,189,199,207,215,221,225,232,240,250,263,276,293,311,330,343,344,344,334,322,309,294,275,252,227,204,185,208,192],
+  [179,163,151,144,139,135,133,133,137,141,151,166,185,194,190,177,177,175,176,177,181,184,189,193,196,200,204,209,215,226,243,260,278,300,315,325,323,317,308,297,284,266,245,222,201,183,215,198],
+  [168,152,141,133,128,124,122,120,121,121,124,129,138,148,161,167,178,182,189,193,199,207,212,216,221,226,231,238,245,254,264,276,289,305,314,319,318,312,304,294,281,265,245,224,204,187,214,197],
+  [193,173,159,149,142,137,134,133,134,137,144,155,169,191,214,219,217,207,202,197,193,190,189,188,189,188,187,185,185,187,191,201,217,241,271,305,326,327,318,308,297,285,271,253,233,211,238,220],
+  [198,178,163,152,144,138,134,132,131,132,134,139,146,161,181,195,210,215,219,216,213,210,209,208,208,206,204,201,199,202,206,212,223,241,264,295,313,314,303,292,283,273,261,247,229,210,237,219],
+  [189,171,157,147,141,136,133,132,133,136,145,158,177,207,248,266,253,228,214,200,189,180,174,170,167,164,162,158,156,157,159,171,194,226,268,310,332,339,329,323,315,305,291,272,248,222,234,214],
+  [198,179,163,151,143,137,133,130,129,130,133,139,146,161,189,214,231,234,232,224,215,205,200,195,192,188,185,181,177,178,182,191,207,235,272,307,321,318,311,305,298,290,278,262,242,220,234,215],
+  [178,162,149,140,133,129,126,125,126,129,137,150,167,194,229,253,251,232,221,208,198,188,181,176,174,172,170,168,166,169,175,190,215,247,285,318,332,332,328,322,314,304,289,268,243,216,220,201],
+  [185,167,153,143,135,129,126,123,123,124,128,133,140,154,177,204,227,236,239,234,227,217,211,205,201,199,198,196,193,196,202,213,229,256,286,310,314,312,305,298,290,282,269,253,232,210,217,199],
+  [180,163,151,142,135,131,128,126,127,130,139,150,166,190,222,244,245,231,223,212,202,191,186,182,179,177,177,177,175,176,179,190,210,237,273,308,326,327,324,318,311,302,288,268,243,217,221,201],
+  [190,173,159,148,140,134,130,127,126,126,129,134,140,153,176,201,222,232,235,229,223,214,209,203,199,196,193,191,191,197,201,210,224,249,278,303,311,312,306,300,293,285,274,258,237,215,221,203],
+  [192,175,162,153,146,142,139,137,139,142,152,167,186,218,256,269,254,227,213,199,187,177,173,168,164,161,160,158,155,156,158,168,186,211,248,290,321,332,327,322,316,307,294,274,250,224,232,213],
+  [205,187,172,160,152,146,142,140,139,140,144,150,157,175,203,225,239,240,236,224,214,201,194,187,182,178,174,171,166,166,169,176,188,210,243,282,310,315,313,308,302,295,284,269,248,226,236,217],
+  [199,180,166,156,149,143,140,138,139,142,151,164,182,208,231,237,226,208,199,190,185,178,176,173,173,172,169,166,161,161,162,170,186,209,243,285,320,336,335,329,321,312,299,280,256,230,243,222],
+  [206,187,172,160,152,146,142,139,138,139,142,149,157,171,188,201,211,215,215,212,211,205,206,206,204,201,196,191,187,186,187,192,200,217,243,274,301,313,310,302,295,287,276,260,240,219,234,215],
+  [194,178,166,158,152,148,147,149,155,165,184,210,229,238,232,215,209,200,195,190,191,187,186,183,178,174,170,168,167,171,179,191,208,231,253,273,290,305,309,307,299,285,266,244,221,201,232,217],
+  [200,183,169,159,153,148,145,143,145,149,157,169,178,190,203,209,214,212,212,211,214,214,213,209,205,201,197,194,191,192,197,212,226,245,261,274,285,292,292,286,277,264,247,228,209,192,224,210],
+  [188,171,160,151,146,143,142,143,148,157,173,189,203,212,209,197,196,193,192,190,192,192,193,192,190,189,187,188,188,195,207,220,239,261,278,286,291,296,296,301,294,279,259,236,214,194,228,212],
+  [189,173,161,152,146,142,140,138,139,142,148,155,164,175,189,197,206,208,212,212,217,218,221,222,219,217,213,213,215,219,224,232,243,259,269,275,277,280,284,281,274,260,243,224,204,187,218,204],
+  [180,163,152,144,138,134,132,131,134,139,146,153,160,168,174,174,180,181,187,190,197,201,204,207,209,210,212,216,222,232,245,258,272,290,301,307,304,299,295,292,286,272,253,232,210,191,220,203],
+  [192,174,161,152,146,142,139,137,138,139,142,144,148,157,172,181,192,195,202,205,212,214,215,217,219,218,216,219,221,226,232,243,256,272,282,285,284,280,280,280,277,267,251,232,211,193,228,212]];
+const SAMPLE_LEVEL = [826,951,901,1012,834,936,827,856,1048,1093,1361,1405,1387,1425,1167,1206,1012,1019,824,838,801,862,848,788];
+
+// A year of usage, in the same form as a usage file, for a sample home of `people` (1 to 5).
+// Each day takes its month and day type's shape; each season is then scaled so that it adds up
+// to the benchmark for that season. The year is the 365 days to yesterday, with no solar.
+function sampleMeter(people, today = new Date()) {
+  const end = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const start = end - 365 * DAY_MS;
+  const seasonOf = m => (m === 11 || m <= 1 ? 0 : m <= 4 ? 1 : m <= 7 ? 2 : 3);   // m: 0 = January
+  const days = [], seasonSum = [0, 0, 0, 0];
+  for (let t = start; t < end; t += DAY_MS) {
+    const d = new Date(t), m = d.getUTCMonth();
+    const row = m * 2 + (d.getUTCDay() % 6 === 0 ? 1 : 0);   // Saturday or Sunday: the weekend row
+    const imp = Float64Array.from(SAMPLE_SHAPE[row], x => x * SAMPLE_LEVEL[row]);
+    const season = seasonOf(m);
+    for (let i = 0; i < 48; i++) seasonSum[season] += imp[i];
+    days.push({ imp, exp: new Float64Array(48), ...localTimes(t), season });
+  }
+  const kwh = SAMPLE_SEASONS[people];
+  for (const day of days) {
+    const f = kwh[day.season] / seasonSum[day.season];
+    for (let i = 0; i < 48; i++) day.imp[i] *= f;
+  }
+  return { days, scale: 1, first: start, last: end - DAY_MS, hasSolar: false,
+           sample: people, yearKwh: kwh.reduce((a, b) => a + b, 0) };
+}
+
+// ---- 6. Price every plan -----------------------------------------------------------------
+// Skips plans needing a controlled-load circuit (a separately metered hot-water circuit) and
+// plans with peak-demand charges, as the Python does. With keepDays, each row also keeps its
+// cost on each day of the file (for month-by-month bills).
+function priceAll(plans, meter, keepDays) {
+  const rows = [];
+  let skipped = 0;
+  for (const p of plans) {
+    const c = p.electricityContract || {};
+    if ((c.pricingModel || "").includes("CONT_LOAD")) { skipped++; continue; }
+    try {
+      const perDay = keepDays ? new Float64Array(meter.days.length) : null;
+      const parts = priceParts(c, meter, perDay);
+      if (parts === null) { skipped++; continue; }
+      const credit = signupCredit(c);
+      rows.push({ id: p.planId, retailer: p.brandName, name: p.displayName, model: c.pricingModel || "",
+                  cost: parts.total, parts, perDay, credit: credit.amount, creditText: credit.text, needs: planNeeds(p),
+                  channel: signupChannel(p), newOnly: newCustomersOnly(p), timing: credit.timing, plan: p });
+    } catch (e) { skipped++; }                 // malformed plan data: leave it out
+  }
+  return { rows, skipped };
+}
+</script>
+
+<script>
+"use strict";
+// ==== Page ================================================================================
+const MIRROR = "https://cdr.energymadeeasy.gov.au/";
+// Retailer slugs on the government mirror (from reference/retailer_sources.json, 7 Oct 2026).
+// Diamond Energy publishes on its own server; the mirror carries it as "diamond".
+const RETAILERS = ["1st-energy", "actewagl", "active-utilities", "agl", "alinta", "altogether", "amber", "ampol",
+  "arc-energy", "arcline", "arcstream", "aseno", "aurora", "besy", "blue-nrg", "brighte", "cleanco", "cleanpeak",
+  "coles", "commander", "covau", "cpe-mascot", "diamond", "discover", "dodo", "ea-connect", "energy-locals",
+  "energy-locals-urban", "energyaustralia", "engie", "erc-energy", "ergon", "evergy", "flipped", "flow-power",
+  "future-x", "gee-energy", "globird", "glow-power", "humenergy", "igeno", "kogan", "locality-planning",
+  "localvolts", "lumo", "macarthur", "macquarie", "metered-energy", "microgrid", "momentum", "nectr",
+  "next-business", "origin", "ovo-energy", "perpetual", "powerhub", "powershop", "powow", "radian",
+  "real-utilities", "red-energy", "savant", "seene", "shell-energy", "silver-asset", "smart-energy", "solstice",
+  "stanwell", "sumo-power", "tango", "telstra-energy", "tesla", "veolia", "winconnect", "yes-energy", "zen-energy"];
+// Retailers' websites, each opened and checked on 8 Oct 2026. Origin's site refuses automated
+// checks, so its address is the one it publishes. The feed itself carries no plan links.
+const RETAILER_SITES = {
+  "1st Energy": "https://1stenergy.com.au/", "AGL": "https://www.agl.com.au/",
+  "Alinta Energy": "https://www.alintaenergy.com.au/", "Amber Electric": "https://www.amber.com.au/",
+  "Arcline by RACV - Energy": "https://energy.arcline.com.au/", "Blue NRG": "https://bluenrg.com.au/",
+  "CovaU": "https://www.covau.com.au/", "Diamond Energy": "https://diamondenergy.com.au/",
+  "Dodo Power & Gas": "https://www.dodo.com/", "ENGIE": "https://engie.com.au/",
+  "EnergyAustralia": "https://www.energyaustralia.com.au/", "Flipped Energy": "https://flipped.energy/",
+  "Flow Power": "https://flowpower.com.au/", "GloBird Energy": "https://www.globirdenergy.com.au/",
+  "Indigo Power": "https://indigopower.com.au/", "Kogan Energy": "https://www.koganenergy.com.au/",
+  "Lumo Energy": "https://www.lumoenergy.com.au/", "Momentum Energy": "https://www.momentumenergy.com.au/",
+  "Nectr": "https://nectr.com.au/", "Next Business Energy": "https://nextbusinessenergy.com.au/",
+  "OVO Energy": "https://www.ovoenergy.com.au/", "Origin Energy": "https://www.originenergy.com.au/",
+  "Powershop": "https://www.powershop.com.au/", "Real Utilities": "https://realutilities.com.au/",
+  "Red Energy": "https://www.redenergy.com.au/", "Sumo": "https://www.sumo.com.au/",
+  "Tango Energy": "https://www.tangoenergy.com/",
+};
+const CONCURRENCY = 8;
+const FIRST_SHOWN = 5;                         // plans shown at first
+const PAGE = 10;                               // plans added by each "Show more"
+const PERIODS = { year: [1, "a year"], quarter: [4, "a quarter"], month: [12, "a month"] };
+const SWITCH_MARGIN = 50;                      // a switch must save more than this a year
+const COMPARE_MAX = 4;                         // plans on the Compare page at once
+const STAYS = [3, 6, 12, 24];                  // months, for "cost over different stays" on Compare
+const SITE_URL = "https://yobin-tim.github.io/vic-energy-plan-check/";   // for calendar reminders
+// The feedback form (a Google Form). Until it is set, every feedback link stays hidden.
+const FEEDBACK_URL = "https://forms.gle/CV7HAsQJs4d1T3My5";
+const DASHES = ["", "7 4", "2 4", "9 4 2 4"];  // one line style per compared plan, besides its colour
+
+const $ = id => document.getElementById(id);
+const state = {
+  network: "United Energy", plans: null, failed: 0, listsFailed: 0, asOf: null, stale: false,
+  loading: false, error: "", meter: null, loadId: 0,
+  pricedYear: null, priced: null, view: null,  // yearly prices, and prices over the chosen stay
+  ticked: new Set(), options: new Set(), showSolar: false,
+  period: "year", stay: 12, shown: FIRST_SHOWN, openRates: new Set(),   // stay: the list's year ahead
+  own: [], ownMode: "typed", ownKind: "flat", ownCurrent: false, nextKey: 1,
+  compare: [], chart: "diff",                  // plan IDs chosen to compare; what the chart shows
+  retailer: "",                                // list filter: one retailer's plans, or "" for all
+  usage: "file", people: 2, fileMeter: null,   // priced on your file or a sample home; the file kept aside
+  listCtx: null,                               // the ranked list as last drawn, for the Compare page
+  deferLoad: false,                            // just cleared: download prices only when asked
+};
+
+// ---- Pages: one file, several linked pages ------------------------------------------------
+// A link to "#how" shows the How it works page; a link to "#w-solar-credit" shows the page
+// holding that term and scrolls to it. Everything works from a saved copy of the file too.
+function route(moved) {
+  let id = "";
+  try { id = decodeURIComponent(location.hash.slice(1)); } catch (e) { /* malformed address: show the tool */ }
+  const target = id ? document.getElementById(id) : null;
+  const page = (target && target.closest(".page")) || $("check");
+  const leaving = [...document.querySelectorAll(".page")].find(p => !p.hidden);
+  if (leaving && leaving.id === "check" && leaving !== page) state.checkScroll = window.scrollY;
+  for (const p of document.querySelectorAll(".page")) p.hidden = p !== page;
+  for (const a of document.querySelectorAll("nav.pages a")) {
+    if (a.getAttribute("href") === "#" + page.id) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  }
+  document.title = page.dataset.title;
+  // Straight after "Clear data", prices are downloaded (and kept) only once you go to use them.
+  if (state.deferLoad && (page.id === "check" || page.id === "compare")) { state.deferLoad = false; loadPlans(false); }
+  if (page.id === "compare") renderCompare();
+  if (target && target !== page) target.scrollIntoView();
+  else if (page.id === "check" && leaving && leaving !== page && state.checkScroll != null) window.scrollTo(0, state.checkScroll);
+  else window.scrollTo(0, 0);
+  // After a link, move keyboard focus to what it pointed at (or the page's heading).
+  const focusTo = moved && (target && target !== page ? target : page.querySelector("h1"));
+  if (focusTo) {
+    if (!focusTo.hasAttribute("tabindex")) focusTo.setAttribute("tabindex", "-1");
+    focusTo.focus({ preventScroll: true });
+  }
+}
+
+// ---- Fetching plans --------------------------------------------------------------------------
+async function getJSON(url, version) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await fetch(url, { headers: { "x-v": version, "x-min-v": "1" } });
+      if (r.ok) return await r.json();
+      if (r.status === 404) return null;
+    } catch (e) { /* network hiccup: retry */ }
+    await new Promise(ok => setTimeout(ok, 800 * (attempt + 1)));
+  }
+  return null;
+}
+
+// Run fn over items, at most n at a time.
+async function pool(items, n, fn) {
+  let next = 0;
+  await Promise.all(Array.from({ length: n }, async () => {
+    while (next < items.length) { const k = next++; await fn(items[k]); }
+  }));
+}
+
+// fresh = true skips the one-day cache (the Refresh prices button).
+async function loadPlans(fresh) {
+  const id = state.loadId + 1;
+  try {
+    await fetchPlans(fresh);
+  } catch (e) {
+    // Anything unexpected: stop the progress bar and say so, rather than hang.
+    if (id === state.loadId) {
+      Object.assign(state, { loading: false, error: "Something went wrong getting prices. Press Refresh prices to try again." });
+      render();
+    }
+  }
+}
+
+async function fetchPlans(fresh) {
+  const id = ++state.loadId;
+  Object.assign(state, { loading: true, error: "", stale: false, plans: null, priced: null, pricedYear: null,
+                         failed: 0, listsFailed: 0 });
+  showProgress(0, 1, "Finding plans…");
+  render();
+
+  const saved = await cacheGet(state.network);
+  if (id !== state.loadId) return;
+  const useSaved = stale => {
+    Object.assign(state, { loading: false, plans: saved.plans, failed: saved.failed || 0, listsFailed: 0,
+                           asOf: new Date(saved.savedAt), stale });
+    priceIfReady();
+  };
+  if (!fresh && saved && Date.now() - saved.savedAt < CACHE_HOURS * 3600000) return useSaved(false);
+  if (saved && navigator.onLine === false) return useSaved(true);       // no internet: last kept prices
+
+  // 1. Each retailer's plan list (all of Australia, in pages); keep this network's home plans.
+  const net = state.network.toLowerCase();
+  const found = new Map();
+  let listsDone = 0, listsFailed = 0;
+  await pool(RETAILERS, CONCURRENCY, async slug => {
+    try {
+      for (let page = 1; ; page++) {
+        const d = await getJSON(`${MIRROR}${slug}/cds-au/v1/energy/plans?fuelType=ELECTRICITY&effective=CURRENT&page-size=1000&page=${page}`, "1");
+        if (!d || !d.data || !Array.isArray(d.data.plans)) { listsFailed++; break; }
+        for (const p of d.data.plans) {
+          const dists = ((p.geography || {}).distributors || []).map(x => String(x).toLowerCase());
+          if (dists.includes(net) && (p.customerType || "RESIDENTIAL") === "RESIDENTIAL") found.set(p.planId, slug);
+        }
+        if (page >= ((d.meta || {}).totalPages || 1)) break;
+      }
+    } catch (e) { listsFailed++; }             // a malformed reply counts as a failed list
+    if (id === state.loadId) showProgress(++listsDone, RETAILERS.length, "Finding plans…");
+  });
+
+  // 2. Each plan's details (the prices are only there).
+  const plans = [];
+  let done = 0;
+  await pool([...found], CONCURRENCY, async ([planId, slug]) => {
+    try {
+      const d = await getJSON(`${MIRROR}${slug}/cds-au/v1/energy/plans/${encodeURIComponent(planId)}`, "3");
+      if (d && d.data && d.data.electricityContract) plans.push(d.data);
+    } catch (e) { /* counted below as not downloaded */ }
+    if (id === state.loadId) showProgress(++done, found.size, `Getting today's prices: ${done} of ${found.size} plans`);
+  });
+  if (id !== state.loadId) return;             // a newer refresh has started
+  if (!plans.length && saved) return useSaved(true);   // the feed is down or there is no internet
+
+  Object.assign(state, { loading: false, plans, failed: found.size - plans.length, listsFailed,
+                         asOf: plans.length ? new Date() : null });
+  if (!plans.length) state.error = "Could not reach the government plan list. Check your connection, then press Refresh prices.";
+  // Keep it only if everything arrived, so a partial download is not reused all day.
+  if (plans.length && !listsFailed && !state.failed) cachePut(state.network, { savedAt: state.asOf.getTime(), plans, failed: 0 });
+  priceIfReady();
+}
+
+// ---- One-day plan cache ----------------------------------------------------------------------
+// Public plan data only, never the usage file. Kept in this browser's own database for a
+// day so a second visit is instant, and used past that day only when there is no internet.
+// If storage is unavailable (a private window, or a browser that blocks it for saved files),
+// the page simply downloads live.
+const CACHE_HOURS = 24;
+const CACHE_DB = "plan-check";
+// Each use opens the database and closes it when done, so "Clear data" can delete it at once.
+function openCache() {
+  return new Promise((ok, bad) => {
+    const req = indexedDB.open(CACHE_DB, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("plans");
+    req.onsuccess = () => { req.result.onversionchange = () => req.result.close(); ok(req.result); };
+    req.onerror = () => bad(req.error);
+  });
+}
+async function cacheGet(key) {
+  try {
+    const db = await openCache();
+    return await new Promise((ok, bad) => {
+      const tx = db.transaction("plans");
+      const r = tx.objectStore("plans").get(key);
+      tx.oncomplete = () => db.close();
+      r.onsuccess = () => ok(r.result || null);
+      r.onerror = () => bad(r.error);
+    });
+  } catch (e) { return null; }
+}
+async function cachePut(key, value) {
+  try {
+    const db = await openCache();
+    const tx = db.transaction("plans", "readwrite");
+    tx.objectStore("plans").put(value, key);
+    tx.oncomplete = tx.onerror = () => db.close();
+  } catch (e) { /* no cache: the next visit downloads live */ }
+}
+
+// "Clear data on this device": delete this page's own database (and nothing else: the site's
+// address may be shared with other sites, so other storage is left alone), then reload. The
+// reload forgets the usage file and every answer, which live only in the page's memory.
+async function clearData() {
+  $("clear").disabled = true;
+  await new Promise(done => {
+    try {
+      const req = indexedDB.deleteDatabase(CACHE_DB);
+      req.onsuccess = req.onerror = req.onblocked = () => done();
+    } catch (e) { done(); }                    // no database support: nothing was kept
+  });
+  history.replaceState(null, "", "#data-cleared");
+  location.reload();
+}
+
+function showProgress(done, total, text) {
+  $("bar").max = total;
+  $("bar").value = done;
+  $("load-text").textContent = text;
+}
+
+// Prices for the year ahead, which rank the list. The
+// Compare page prices other stays for the few plans it shows.
+function priceIfReady() {
+  if (state.plans && state.meter) {
+    state.pricedYear = priceAll(state.plans, state.meter, true);   // keeps each day's cost too
+    state.yearById = new Map(state.pricedYear.rows.map(r => [r.id, r]));
+    state.view = stayView(state.meter, state.stay);
+    state.priced = state.pricedYear;
+    fillOwnPickers();
+  } else {
+    state.pricedYear = state.priced = null;
+  }
+  render();
+}
+
+// ---- Meter file --------------------------------------------------------------------------
+function readFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      state.meter = state.fileMeter = parseMeter(String(reader.result));
+      setUsage("file");
+      const m = state.meter;
+      let note = `Usage from ${fmtDate(m.first)} to ${fmtDate(m.last)}.`;
+      if (m.days.length < 28) throw new Error("This file has less than four weeks of usage.");
+      if (m.days.length < 330) note += ` Only ${m.days.length} days, so yearly costs are scaled up from these.`;
+      setNote("file-note", note);
+      $("drop-text").textContent = "File added. Drop another to replace it.";
+      state.scrollToResults = true;
+    } catch (e) {
+      state.meter = state.fileMeter = null;
+      setUsage("file");
+      setNote("file-note", e.message);
+      $("drop-text").textContent = "Drop the file here, or tap to choose it";
+    }
+    priceIfReady();
+  };
+  reader.readAsText(file);
+}
+
+// ---- Your file or a sample home --------------------------------------------------------------
+// Switching keeps the file aside, so switching back needs no new upload.
+function setUsage(mode) {
+  state.usage = mode;
+  setPressed("usage-mode", "data-usage", mode);
+  $("usage-file").hidden = mode !== "file";
+  $("usage-sample").hidden = mode !== "sample";
+}
+function useSample() {
+  state.meter = sampleMeter(state.people);
+  setNote("file-note", `A sample home with ${state.people === 5 ? "5 or more people" : state.people === 1 ? "1 person" : state.people + " people"}: about ${Math.round(state.meter.yearKwh).toLocaleString("en-AU")} kWh a year.`);
+  state.scrollToResults = true;
+  priceIfReady();
+}
+
+// ---- Small helpers ---------------------------------------------------------------------------
+const money = x => (Math.round(x) < 0 ? "-$" : "$") + Math.abs(Math.round(x)).toLocaleString("en-AU");
+const fmtDate = ms => new Date(ms).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const localDate = d => d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+const num = s => { const x = parseFloat(String(s).replace(/[^0-9.\-]/g, "")); return Number.isFinite(x) ? x : NaN; };
+
+function setNote(id, text) {
+  $(id).textContent = text || "";
+  $(id).hidden = !text;
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function link(href, text) {
+  const a = el("a", "", text);
+  a.href = href;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  return a;
+}
+
+const setPressed = (group, attr, value) => {
+  for (const b of $(group).querySelectorAll(`[${attr}]`)) b.setAttribute("aria-pressed", String(b.getAttribute(attr) === String(value)));
+};
+
+// ---- Your own plans ------------------------------------------------------------------------
+// A plan typed in is turned into the same shape as a plan from the feed, so the same engine
+// prices it. Prices on bills include GST; the feed's do not, so typed prices are divided by 1.1.
+function ownContract(f) {
+  const exGst = c => c / 100 / 1.1;
+  const tp = { dailySupplyCharge: exGst(f.daily) };
+  if (f.kind === "flat") {
+    Object.assign(tp, { rateBlockUType: "singleRate", singleRate: { rates: [{ unitPrice: exGst(f.rate) }] } });
+  } else {
+    // First band wins: peak hours first, then "other times" covering every hour.
+    const days = f.peakDays === "weekdays" ? ["MON", "TUE", "WED", "THU", "FRI"] : DOW.slice();
+    Object.assign(tp, { rateBlockUType: "timeOfUseRates", timeOfUseRates: [
+      { displayName: "Peak", rates: [{ unitPrice: exGst(f.peak) }], timeOfUse: [{ days, startTime: f.from, endTime: f.to }] },
+      { displayName: "Other times", rates: [{ unitPrice: exGst(f.off) }], timeOfUse: [{ days: DOW.slice(), startTime: "00:00", endTime: "00:00" }] },
+    ] });
+  }
+  return {
+    pricingModel: f.kind === "flat" ? "SINGLE_RATE" : "TIME_OF_USE", tariffPeriod: [tp],
+    solarFeedInTariff: f.fit > 0 ? [{ tariffUType: "singleTariff", singleTariff: { rates: [{ unitPrice: f.fit / 100 }] } }] : [],
+    discounts: [], incentives: [], fees: [], eligibility: [],
+  };
+}
+
+// Rows for typed plans, priced over the chosen stay, in the same shape as feed rows.
+function ownRows() {
+  const view = state.stay === 12 ? state.meter : state.view;
+  return state.own.filter(o => !o.listedId).map(o => {
+    const parts = priceParts(o.contract, view);
+    const perDay = new Float64Array(state.meter.days.length);
+    const yearly = priceParts(o.contract, state.meter, perDay).total;
+    return {
+      id: "own:" + o.key, retailer: o.retailer || "Your plan", name: o.name, model: o.contract.pricingModel,
+      cost: parts.total, parts, yearly, perDay,
+      credit: o.credit, creditText: o.credit ? "Entered by you" : "", timing: { instalments: o.creditMonths, paidBy: o.creditMonths },
+      needs: [], channel: "", newOnly: false, own: o,
+      plan: { planId: "own", brandName: o.retailer, displayName: o.name, geography: {}, electricityContract: o.contract },
+    };
+  });
+}
+
+// Each month's bill over the chosen stay, for a row of the list (worked out once per row).
+const billCache = new WeakMap();
+function billsFor(r) {
+  let bills = billCache.get(r);
+  if (!bills) {
+    const perDay = r.perDay || state.yearById.get(r.id).perDay;
+    bills = stayBills(state.meter, perDay, state.stay, r.cost);
+    billCache.set(r, bills);
+  }
+  return bills;
+}
+// The part of a row's sign-up credit that the bills of the stay use, month by month.
+function creditByMonth(r) {
+  return r.credit > 0 ? creditUse(billsFor(r), r.credit, r.timing) : new Array(state.stay).fill(0);
+}
+const sum = xs => xs.reduce((a, b) => a + b, 0);
+
+function readOwnForm() {
+  const v = id => $(id).value.trim();
+  const credit = v("own-credit") ? num(v("own-credit")) : 0;
+  const creditMonths = Math.max(1, Math.round(num(v("own-credit-months")) || 1));
+  const unused = v("own-unused") ? num(v("own-unused")) : 0;
+  const base = { key: state.nextKey, current: state.ownCurrent, unused: state.ownCurrent ? unused : 0 };
+  if (state.ownMode === "listed") {
+    const r = state.pricedYear && state.yearById.get(v("own-pick"));
+    if (!r) return { error: "Pick a plan from the list." };
+    return { ...base, listedId: r.id, name: r.name, retailer: r.retailer, credit: 0, creditMonths: 1 };
+  }
+  const f = { kind: state.ownKind, daily: num(v("own-daily")), rate: num(v("own-rate")), peak: num(v("own-peak-rate")),
+              off: num(v("own-off-rate")), from: v("own-peak-from"), to: v("own-peak-to"), peakDays: v("own-peak-days"),
+              fit: v("own-fit") ? num(v("own-fit")) : 0 };
+  // Bills show cents; a value like 1.05 or 0.30 is almost certainly dollars.
+  const looksLikeDollars = "That looks like dollars. Enter cents: for example 105.6 for $1.056 a day, or 25.4 for $0.254 a kWh.";
+  if (!(f.daily >= 0)) return { error: "Enter the daily charge in cents, for example 105.6." };
+  if (f.daily > 0 && f.daily < 10) return { error: looksLikeDollars };
+  const rates = f.kind === "flat" ? [f.rate] : [f.peak, f.off];
+  if (!rates.every(x => x > 0)) return { error: f.kind === "flat" ? "Enter the price in cents a kWh, for example 25.4." : "Enter both the peak and the other-times price, in cents a kWh." };
+  if (rates.some(x => x < 2)) return { error: looksLikeDollars };
+  if (rates.some(x => x > 200) || f.daily > 1000 || f.fit > 100) return { error: "One of those prices looks too high. Prices are in cents, including GST." };
+  if (f.kind === "peak" && !(/^\d\d:\d\d$/.test(f.from) && /^\d\d:\d\d$/.test(f.to) && f.from !== f.to)) return { error: "Enter the peak hours." };
+  if (!(f.fit >= 0) || !(credit >= 0) || !(unused >= 0)) return { error: "Amounts must be numbers." };
+  const retailer = v("own-retailer");
+  if (!retailer) return { error: "Choose the retailer, or Other." };
+  return { ...base, name: v("own-name") || (state.ownCurrent ? "My current plan" : "My offer"),
+           retailer: retailer === "other" ? "" : retailer, contract: ownContract(f), credit, creditMonths };
+}
+
+function addOwn() {
+  const o = readOwnForm();
+  setNote("own-error", o.error || "");
+  if (o.error) return;
+  state.nextKey++;
+  if (o.current) for (const x of state.own) x.current = false;   // only one current plan
+  state.own.push(o);
+  state.ownCurrent = false;
+  $("own-current").setAttribute("aria-checked", "false");
+  $("own-current-fields").hidden = true;
+  $("own-unused").value = "";
+  renderOwnList();
+  render();
+}
+
+function renderOwnList() {
+  $("own-list").replaceChildren(...state.own.map(o => {
+    const li = el("li", "", `${o.name}${o.retailer ? " (" + o.retailer + ")" : ""}${o.current ? " · your current plan" : ""}`);
+    const b = el("button", "", "Remove");
+    b.type = "button";
+    b.addEventListener("click", () => {
+    state.own = state.own.filter(x => x !== o);
+    state.compare = state.compare.filter(id => id !== "own:" + o.key);
+    renderOwnList();
+    render();
+  });
+    li.append(b);
+    return li;
+  }));
+}
+
+// Retailer list and plan picker for the form, from the downloaded plans.
+function fillOwnPickers() {
+  const rows = state.pricedYear.rows.slice().sort((a, b) => a.retailer.localeCompare(b.retailer) || a.name.localeCompare(b.name));
+  const brands = [...new Set(rows.map(r => r.retailer))];
+  const keep = $("own-retailer").value;
+  $("own-retailer").replaceChildren(Object.assign(el("option", "", "Choose…"), { value: "" }),
+                                    ...brands.map(b => { const o = el("option", "", b); o.value = b; return o; }),
+                                    Object.assign(el("option", "", "Other"), { value: "other" }));
+  if (keep) $("own-retailer").value = keep;
+  const pr = $("own-pick-retailer"), wasRetailer = pr.value;
+  pr.replaceChildren(Object.assign(el("option", "", "All retailers"), { value: "" }),
+                     ...brands.map(b => Object.assign(el("option", "", b), { value: b })));
+  if (wasRetailer) pr.value = wasRetailer;
+  state.pickRows = rows;
+  filterPick();
+}
+
+// The plan list in "Pick a listed plan": only the chosen retailer's plans, and only those whose
+// name, retailer or plan ID contain every word typed in the search box.
+function filterPick() {
+  const rows = state.pickRows || [];
+  const brand = $("own-pick-retailer").value;
+  const words = $("own-search").value.toLowerCase().split(/\s+/).filter(Boolean);
+  const match = rows.filter(r => (!brand || r.retailer === brand) &&
+    words.every(w => `${r.retailer} ${r.name} ${r.id}`.toLowerCase().includes(w)));
+  const pick = $("own-pick"), was = pick.value;
+  const option = r => Object.assign(el("option", "",
+    `${brand ? "" : r.retailer + ": "}${r.name} · ${r.model.startsWith("SINGLE_RATE") ? "same price all day" : "varies by time of day"}`), { value: r.id });
+  pick.replaceChildren(...match.map(option));
+  if (match.some(r => r.id === was)) pick.value = was;
+  $("own-pick-count").textContent = !match.length ? "No plans match. Try fewer words, or All retailers."
+    : `${match.length} ${match.length === 1 ? "plan matches" : "plans match"}.`;
+}
+
+// ---- Showing results -----------------------------------------------------------------------
+function render() {
+  const postcode = $("postcode").value.trim();
+  const validPostcode = /^3\d{3}$/.test(postcode);
+  // Every plan lists the postcodes its network covers, so the plans also tell us whether
+  // this postcode is on the network.
+  let offNetwork = false;
+  let pcNote = "";
+  if (postcode.length === 4 && !validPostcode) pcNote = "Victorian postcodes only, for now.";
+  else if (validPostcode && state.plans && !state.plans.some(p => servesPostcode(p, postcode))) {
+    offNetwork = true;
+    pcNote = `${postcode} is not on ${state.network}'s network, the only one that works so far.`;
+  }
+  setNote("postcode-note", pcNote);
+
+  $("loading").hidden = !state.loading;
+  $("refresh").hidden = state.loading || !(state.asOf || state.error);   // also offered after a failure
+  const missing = state.failed + state.listsFailed;
+  const asOfText = state.asOf && state.asOf.toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  $("asof").textContent = !state.asOf || state.loading ? ""
+    : state.stale ? `${navigator.onLine === false ? "No internet" : "The government plan list could not be reached"}, so these are the prices kept on this device from ${asOfText}.`
+    : `Prices as of ${asOfText}.` + (missing ? " Some plans could not be downloaded, so press Refresh prices." : "");
+
+  // What is still missing, in step order.
+  let message = state.error;
+  if (!message && !validPostcode) message = "Enter your postcode to see your plans.";
+  else if (!message && !state.meter) message = "Add your usage file, or choose a sample home, to see your plans.";
+  else if (!message && offNetwork) message = "No plans to show for this postcode yet.";
+  $("message").textContent = message;
+  $("message").hidden = !message;
+
+  // Switches and choices that appear on more than one page show the same state everywhere.
+  for (const b of document.querySelectorAll("[data-option]")) b.setAttribute("aria-checked", String(state.options.has(b.dataset.option)));
+  for (const b of document.querySelectorAll("[data-period]")) b.setAttribute("aria-pressed", String(b.dataset.period === state.period));
+
+  const show = !message && !!state.priced;
+  $("results").hidden = !show;
+  $("how-short").hidden = !show;
+  if (!show) { state.listCtx = null; renderCompare(); return; }
+  if (state.scrollToResults) {
+    state.scrollToResults = false;
+    requestAnimationFrame(() => $("step3").scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  // 1. What the costs are based on, and solar
+  const months = state.stay, view = state.view;
+  const sample = state.meter.sample;
+  $("estimate-note").replaceChildren(sample
+    ? `These costs are for a sample home with ${sample === 5 ? "5 or more people" : sample === 1 ? "1 person" : sample + " people"}, not for your own home. `
+    : "Costs are estimates for the next year, from last year's usage. This is not financial advice. ",
+    Object.assign(el("a", "", sample ? "Why your own file is better" : "Read the limits"), { href: sample ? "#how-sample" : "#how-limits" }));
+  $("estimate-note").classList.toggle("warn", !!sample);
+  const hasSolar = state.meter.hasSolar;
+  $("solar-box").hidden = hasSolar;
+  const ticked = new Set(state.ticked);
+  if (hasSolar || state.showSolar) ticked.add("solar");
+
+  // 2. Plans for this postcode that this household can get, plus plans typed in.
+  const all = state.priced.rows.filter(r => servesPostcode(r.plan, postcode));
+  renderNeeds(all);
+  const own = ownRows();
+  const currentEntry = state.own.find(o => o.current);
+  const currentRow = !currentEntry ? null
+    : currentEntry.listedId ? all.find(r => r.id === currentEntry.listedId) || null
+    : own.find(r => r.own === currentEntry) || null;
+  const currentRetailer = currentRow && currentRow.retailer;
+  let list = all.filter(r => r.needs.every(k => ticked.has(k)))
+    // A retailer's "new customers only" plans are not open to its own customers.
+    .filter(r => !(currentRetailer && r.newOnly && r.retailer === currentRetailer && r !== currentRow));
+  if (state.options.has("flat")) list = list.filter(r => r.model.startsWith("SINGLE_RATE"));
+  if (state.options.has("direct")) list = list.filter(r => !r.channel);
+  renderRetailerFilter(list);
+  if (state.retailer) list = list.filter(r => r.retailer === state.retailer);
+  list = list.concat(own.filter(r => !list.includes(r)));
+  // Plans you picked from the list stay in view, like your current plan.
+  const picked = new Set(state.own.filter(o => o.listedId).map(o => o.listedId));
+  for (const r of all) if (picked.has(r.id) && !list.includes(r)) list.push(r);
+  if (currentRow && !list.includes(currentRow)) list.push(currentRow);   // always show your own plan
+
+  // 3. Rank by the cost over the stay, less the part of any sign-up credit that the stay's
+  // bills can use, then show averages. Your current plan's own credit is already yours.
+  const withCredits = state.options.has("credits");
+  const used = new Map();
+  const creditUsed = r => {
+    if (!withCredits || r === currentRow || !(r.credit > 0)) return 0;
+    if (!used.has(r)) used.set(r, sum(creditByMonth(r)));
+    return used.get(r);
+  };
+  const total = r => r.cost - creditUsed(r);
+  list.sort((a, b) => total(a) - total(b));
+  // "Best plan from each retailer only": the cheapest of each retailer's plans, with a count of
+  // the others so the card can offer to show them. Your own plans always stay.
+  const retailerCounts = new Map();
+  if (state.options.has("best")) {
+    for (const r of list) if (!r.own) retailerCounts.set(r.retailer, (retailerCounts.get(r.retailer) || 0) + 1);
+    const seen = new Set();
+    list = list.filter(r => {
+      if (r.own || r === currentRow || picked.has(r.id)) return true;
+      if (seen.has(r.retailer)) return false;
+      seen.add(r.retailer);
+      return true;
+    });
+  }
+  const [divisor, per] = PERIODS[state.period];
+  const toPeriod = x => x * (365 / view.stayDays) / divisor;   // a stay's dollars as an average per period
+  const avg = r => toPeriod(total(r));
+  const ctx = { months, withCredits, per, divisor, avg, toPeriod, creditUsed, hasSolar, currentRow, picked,
+                best: list.length ? avg(list[0]) : 0, current: currentRow ? avg(currentRow) : null,
+                vdo: defaultOfferCosts(all), compare: new Set(state.compare), retailerCounts };
+  const shown = list.slice(0, state.shown);
+  const cards = shown.map((r, i) => card(r, i + 1, ctx));
+  // Your current plan and plans you picked stay on view, with their true rank, even when
+  // they are far down the list.
+  list.forEach((r, i) => {
+    if (i >= shown.length && (r === currentRow || picked.has(r.id))) cards.push(card(r, i + 1, ctx));
+  });
+  $("cards").replaceChildren(...cards);
+  $("summary").textContent = !list.length ? "No plans match these choices."
+    : `Showing ${shown.length} of ${list.length} ${state.retailer ? state.retailer + " " : ""}plans, cheapest first.`;
+  $("all-retailers").hidden = !state.retailer;
+  const left = list.length - shown.length;
+  $("more").hidden = left <= 0;
+  $("more").textContent = `Show ${Math.min(PAGE, left)} more`;
+
+  // For the Compare page: every row this postcode can see (even ones a tick hides now), by ID.
+  const byId = new Map([...all, ...own].map(r => [r.id, r]));
+  state.listCtx = { list, ctx, total, byId };
+  const n = state.compare.filter(id => byId.has(id)).length;
+  $("compare-bar").hidden = n === 0;
+  $("compare-text").textContent = n === 1 ? `1 plan chosen. Choose up to ${COMPARE_MAX - 1} more.`
+    : n >= COMPARE_MAX ? `${n} plans chosen, the most at one time.` : `${n} plans chosen. You can add up to ${COMPARE_MAX - n} more.`;
+  $("compare-go").hidden = n < 2;
+  renderCompare();
+
+  renderAdvice(currentEntry, currentRow, list);
+  renderRemind(!currentRow);
+
+  // 4. What was left out, with this household's counts.
+  const solarHidden = !ticked.has("solar") ? all.filter(r => r.needs.includes("solar")).length : 0;
+  const oldMeter = !ticked.has("oldMeter") ? all.filter(r => r.needs.includes("oldMeter")).length : 0;
+  const notTicked = all.filter(r => !r.needs.every(k => ticked.has(k))).length - solarHidden - oldMeter;
+  const items = [
+    `${Math.max(0, notTicked)} plans that need something that you have not ticked.`,
+    `${state.priced.skipped} plans for a separate hot-water circuit or with demand charges.`,
+  ];
+  if (oldMeter) items.push(`${oldMeter} plans for old-style meters.`);
+  if (solarHidden) items.push(`${solarHidden} plans made for homes with solar.`);
+  if (state.failed) items.push(`${state.failed} plans that could not be downloaded.`);
+  if (state.listsFailed) items.push(`${state.listsFailed} retailers whose plan lists could not be downloaded.`);
+  $("how-list").replaceChildren(...items.map(t => el("li", "", t)));
+}
+
+// The tick boxes: one chip for each need that some plan here has. Rebuilt only when that
+// set changes, so a chip keeps keyboard focus after it is pressed. Solar has its own switch.
+function renderNeeds(rows) {
+  const present = new Set(rows.flatMap(r => r.needs));
+  const keys = [...NEEDS.map(n => n[0]), ...[...present].filter(k => k.startsWith("existing:")).sort()]
+    .filter(k => k !== "solar" && present.has(k));
+  const box = $("needs");
+  if (box.dataset.keys !== keys.join()) {
+    box.dataset.keys = keys.join();
+    box.replaceChildren(...keys.map(k => {
+      const b = el("button", "chip", needLabel(k));
+      b.type = "button";
+      b.dataset.need = k;
+      return b;
+    }));
+  }
+  for (const b of box.children) b.setAttribute("aria-pressed", String(state.ticked.has(b.dataset.need)));
+}
+
+// The Default Offer's cost for this household, for each kind of plan: the middle value of the
+// plans published as the "Victorian Default Offer" (their prices are the same; only their
+// solar credits differ).
+function defaultOfferCosts(rows) {
+  const median = xs => { const s = xs.slice().sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : null; };
+  const vdo = rows.filter(r => /victorian default offer|\bVDO\b/i.test(r.name));
+  return { flat: median(vdo.filter(r => r.model.startsWith("SINGLE_RATE")).map(r => r.cost)),
+           tou: median(vdo.filter(r => !r.model.startsWith("SINGLE_RATE")).map(r => r.cost)) };
+}
+
+// Gap to the cheapest plan, from the rounded figures the cards show, so the sums add up.
+function gapText(value, best, per) {
+  const gap = Math.round(value) - Math.round(best);
+  return gap > 0 ? `${money(gap)} ${per} more than the cheapest` : "About the same as the cheapest";
+}
+
+function solarText(c) {
+  const f = (c.solarFeedInTariff || [])[0];
+  if (!f) return "No solar credit";
+  const prices = f.tariffUType === "singleTariff" ? f.singleTariff.rates.map(b => Number(b.unitPrice))
+    : (f.timeVaryingTariffs || []).flatMap(t => t.rates.map(b => Number(b.unitPrice)));
+  const top = Math.max(0, ...prices);
+  return top > 0 ? `Solar credit ${prices.length > 1 ? "up to " : ""}${cents(top)} a kWh` : "No solar credit";
+}
+
+function card(r, rank, ctx) {
+  const isCurrent = r === ctx.currentRow;
+  const isPicked = !isCurrent && ctx.picked.has(r.id);
+  const li = el("li", "card" + (r.own || isCurrent || isPicked ? " mine" : ""));
+  li.tabIndex = -1;                            // so "Show more" can move focus to it
+  li.append(el("div", "rank", String(rank)));
+  const body = el("div", "body");
+  if (isCurrent || r.own || isPicked) body.append(el("div", "tag", isCurrent ? "Your current plan" : isPicked ? "Your pick" : "Your offer"));
+  const value = ctx.avg(r);
+  const line1 = el("div", "top");
+  line1.append(el("span", "retailer", r.retailer), el("span", "cost", `${money(value)} ${ctx.per}`));
+  const line2 = el("div", "top");
+  line2.append(el("span", "name", r.name), el("span", "diff", rank === 1 ? "Cheapest" : gapText(value, ctx.best, ctx.per)));
+  body.append(line1, line2);
+
+  const c = r.plan.electricityContract;
+  const daytimeCredit = (c.discounts || []).some(x => x.methodUType === "percentOfUse" && REBATE_RE.test(x.description || ""));
+  const facts = [!r.model.startsWith("SINGLE_RATE") ? "Price varies by time of day"
+                 : daytimeCredit ? "Same price all day, with a daytime credit" : "Same price all day"];
+  if (r.channel) facts.push(`only through ${r.channel}`);
+  const ref = r.model.startsWith("SINGLE_RATE") ? ctx.vdo.flat : ctx.vdo.tou;
+  if (ref) {
+    const pct = Math.round((r.cost / ref - 1) * 100);
+    facts.push(pct === 0 ? "same as the Default Offer" : `${Math.abs(pct)}% ${pct < 0 ? "below" : "above"} the Default Offer`);
+  }
+  if (!ctx.hasSolar) facts.push(solarText(c));
+  body.append(el("div", "meta", facts.join(" · ")));
+  // In "best plan from each retailer" mode, a way to see the retailer's other plans.
+  const others = ctx.retailerCounts.get(r.retailer) || 0;
+  if (others > 1 && !r.own) {
+    const all = el("button", "linkish", `See all ${others} ${r.retailer} plans`);
+    all.type = "button";
+    all.dataset.retailer = r.retailer;
+    body.append(all);
+  }
+
+  if (ctx.currentRow && !isCurrent) {
+    const d = Math.round(ctx.current) - Math.round(value);
+    body.append(el("div", "save", d > 0 ? `${money(d)} ${ctx.per} less than your plan`
+                                   : d < 0 ? `${money(-d)} ${ctx.per} more than your plan` : "About the same as your plan"));
+  }
+  if (r.credit > 0 && !isCurrent) {         // your own plan's credit is already yours: see the advice
+    body.append(el("div", "credit", creditLine(r, ctx)));
+    const src = r.creditText.replace(/\s+/g, " ").trim();
+    if (src && !r.own) body.append(el("div", "src", `"${src.length > 140 ? src.slice(0, 137) + "…" : src}"`));
+  }
+  // Rates are built only when opened, and stay open when the list is redrawn.
+  const actions = el("div", "actions");
+  const more = el("details", "more");
+  more.append(el("summary", "", "Rates and details"));
+  if (state.openRates.has(r.id)) { more.open = true; more.dataset.built = "1"; more.append(rateList(r)); }
+  more.addEventListener("toggle", () => {
+    if (more.open) state.openRates.add(r.id); else state.openRates.delete(r.id);
+    if (more.open && !more.dataset.built) { more.dataset.built = "1"; more.append(rateList(r)); }
+  });
+  // The Compare tick: up to COMPARE_MAX plans at one time.
+  const chosen = ctx.compare.has(r.id);
+  const tick = el("button", "chip", "Compare");
+  tick.type = "button";
+  tick.dataset.compare = r.id;
+  tick.setAttribute("aria-pressed", String(chosen));
+  tick.setAttribute("aria-label", `Compare ${r.retailer} ${r.name}`);
+  if (!chosen && ctx.compare.size >= COMPARE_MAX) { tick.disabled = true; tick.title = `You can compare up to ${COMPARE_MAX} plans at one time.`; }
+  actions.append(more, tick);
+  body.append(actions);
+  li.append(body);
+  return li;
+}
+
+// What happens to a plan's sign-up credit in this stay, in one sentence.
+function creditLine(r, ctx) {
+  const all = money(r.credit);
+  if (!ctx.withCredits) return `Has a ${all} sign-up credit. It is not in the cost shown.`;
+  const used = ctx.creditUsed(r);
+  if (used >= r.credit - 0.5) return `Includes its ${all} sign-up credit.`;
+  if (used >= 0.5) return `Includes ${money(used)} of its ${all} sign-up credit: the part that a year of bills can use.`;
+  const late = r.timing.instalments <= 1 && r.timing.paidBy > ctx.months;
+  return late ? `Has a ${all} sign-up credit, but it arrives after the first year. It is not counted.`
+              : `Has a ${all} sign-up credit, but a year of your bills is too small to use it.`;
+}
+
+// When the unused credit runs out: walk forward a day at a time from today, each day costing
+// what the current plan would have cost on the same day last year (the average if missing).
+function creditRunOut(contract, unused) {
+  const perDay = new Map();
+  for (const d of state.meter.days) perDay.set(d.mmdd, priceContract(contract, { days: [d], scale: 1, feeShare: 1 / 365 }));
+  const average = [...perDay.values()].reduce((a, b) => a + b, 0) / perDay.size;
+  const t0 = new Date();
+  let balance = unused;
+  for (let i = 0; i < 730; i++) {
+    const d = new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + i);
+    balance -= perDay.get(`${pad(d.getMonth() + 1)}-${pad(d.getDate())}`) ?? average;
+    if (balance <= 0) return { days: i + 1, date: d };
+  }
+  return null;
+}
+
+function renderAdvice(entry, cur, list) {
+  const box = $("advice");
+  box.hidden = !cur;
+  if (!cur) return;
+  // Compare yearly prices without sign-up credits, as How it works sets out.
+  const yearly = r => (r.own ? r.yearly : (state.yearById.get(r.id) || r).cost);
+  const others = list.filter(r => r !== cur);
+  if (!others.length) { box.replaceChildren(el("p", "", "No other plans match these choices.")); return; }
+  const best = others.reduce((a, b) => (yearly(b) < yearly(a) ? b : a));
+  const saving = yearly(cur) - yearly(best);
+  const unused = entry.unused || 0;
+  const runOut = unused > 0 ? creditRunOut(cur.plan.electricityContract, unused) : null;
+  const when = d => d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
+  const p = [el("p", "", `Your current plan would cost about ${money(yearly(cur))} a year, without sign-up credits.`)];
+  let verdict, next = null;
+  if (saving <= 0) {
+    verdict = "Your plan is already the cheapest for your choices. You do not need to switch.";
+    next = runOut && runOut.date;
+  } else {
+    p.push(el("p", "", `The cheapest plan for your choices is ${planLabel(best)}, at about ${money(yearly(best))} a year.`));
+    if (saving <= SWITCH_MARGIN) {
+      verdict = `Your plan costs less than ${money(SWITCH_MARGIN)} a year more than the cheapest. You do not need to switch.`;
+      next = runOut && runOut.date;
+    } else if (unused <= 0) {
+      verdict = `A switch looks worth it. You would pay about ${money(saving)} a year less.`;
+    } else {
+      // Pinned rule: saving until the credit runs out, plus the new plan's credit, against the credit given up.
+      const months = runOut ? runOut.days / 30.44 : 24;
+      const gain = saving / 12 * months + best.credit;
+      if (gain > unused) {
+        verdict = `A switch now looks worth it. Before your ${money(unused)} credit runs out, you would save about ${money(gain)}. That is more than the credit that you would lose.`;
+      } else {
+        verdict = runOut ? `Staying looks better for now. Your ${money(unused)} credit should run out in about ${when(runOut.date)}.`
+                         : `Staying looks better for now. Your ${money(unused)} credit should last for more than two years.`;
+        next = runOut && runOut.date;
+      }
+    }
+  }
+  const atRunOut = !!next;
+  next ||= nextSeasonalCheck();
+  p.push(el("p", "verdict", verdict),
+         el("p", "", `Check again on ${localDate(next)}. ` + (atRunOut
+           ? "That is when your unused credit should run out. After that, a switch loses you nothing."
+           : "Retailers often change prices after 1 July. A check in mid-February and mid-August catches most changes.")),
+         reminderLinks(next));
+  box.replaceChildren(...p);
+}
+
+// A plan's name with its retailer in front, unless the name already starts with it.
+const planLabel = r => (r.name.startsWith(r.retailer) ? r.name : `${r.retailer} ${r.name}`);
+
+// Mid-February or mid-August, whichever comes next: most retailers reprice after the Default
+// Offer resets on 1 July, and February is six months on.
+function nextSeasonalCheck() {
+  const today = new Date(), y = today.getFullYear();
+  return [new Date(y, 1, 15), new Date(y, 7, 15), new Date(y + 1, 1, 15)].find(d => d > today);
+}
+
+// Without a current plan there is no advice box, so the reminder sits under the list.
+function renderRemind(show) {
+  const box = $("remind");
+  box.hidden = !show;
+  if (!show) return;
+  const next = nextSeasonalCheck();
+  box.replaceChildren(el("p", "", `Prices change. Check again on ${localDate(next)}: retailers often change prices after 1 July, and February is six months on.`),
+                      reminderLinks(next));
+}
+
+// "Add to my calendar" makes a calendar file (.ics) on this device, with one all-day event and
+// a 9am alert. Nothing goes online. The Google Calendar link sends only the date and title.
+function reminderLinks(date) {
+  const ymd = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+  const day = ymd(date), after = ymd(new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1));
+  const title = "Check electricity plans";
+  const details = `Download a new usage file from your network's website, then check plans again: ${SITE_URL}`;
+  const wrap = el("p", "remind-links");
+  const add = el("button", "", "Add to my calendar");
+  add.type = "button";
+  add.addEventListener("click", () => {
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+    const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Electricity plan check//EN", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT", `UID:${Date.now()}-${Math.random().toString(36).slice(2)}@electricity-plan-check`,
+      `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${day}`, `DTEND;VALUE=DATE:${after}`,
+      `SUMMARY:${title}`, `DESCRIPTION:${details.replace(/[,;]/g, m => "\\" + m)}`,
+      "BEGIN:VALARM", "ACTION:DISPLAY", `DESCRIPTION:${title}`, "TRIGGER:PT9H", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR"]
+      // The calendar format wants lines of at most 75 characters; longer ones continue on the
+      // next line after a space.
+      .map(line => line.match(/.{1,73}/g).join("\r\n ")).join("\r\n") + "\r\n";
+    const a = el("a");
+    a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" }));
+    a.download = "check-electricity-plans.ics";
+    document.body.append(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+  const google = link(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}` +
+                      `&dates=${day}/${after}&details=${encodeURIComponent(details)}`, "Google Calendar");
+  wrap.append(add, google);
+  return wrap;
+}
+
+// The "Retailer" box: every retailer in the list as filtered so far, rebuilt only when that
+// set changes so the box keeps its focus.
+function renderRetailerFilter(rows) {
+  const names = [...new Set(rows.map(r => r.retailer))].sort((a, b) => a.localeCompare(b));
+  if (state.retailer && !names.includes(state.retailer)) names.push(state.retailer);
+  const box = $("retailer-filter");
+  if (box.dataset.names !== names.join("|")) {
+    box.dataset.names = names.join("|");
+    box.replaceChildren(Object.assign(el("option", "", "All retailers"), { value: "" }),
+                        ...names.map(n => Object.assign(el("option", "", n), { value: n })));
+  }
+  box.value = state.retailer;
+}
+
+// ---- Compare page ------------------------------------------------------------------------------
+// Two to four plans side by side. The cost rows split each plan's cost over your stay into
+// parts, shown as the same average per period as the list, so they add up to the cost row.
+// The price rows follow. Green marks the best value in each row; a row whose values are all
+// the same has no green.
+const STAY_NAMES = { 3: "3 months", 6: "6 months", 12: "1 year", 24: "2 years" };
+
+function renderCompare() {
+  const L = state.listCtx;
+  const rows = L ? state.compare.map(id => L.byId.get(id)).filter(Boolean) : [];
+  $("nav-count").textContent = rows.length ? ` (${rows.length})` : "";
+  if ($("compare").hidden) return;             // drawn only while the page is on view
+  $("cmp-empty").hidden = rows.length >= 2;
+  $("cmp-body").hidden = rows.length < 2;
+  if (rows.length < 2) return;
+  const { ctx, list } = L;
+  const view = state.view;
+
+  $("cmp-setup").textContent = state.meter.sample ? `Priced on a sample home, not on your own usage.` : `Priced on the next year, from last year's usage.`;
+
+  // Household totals over the stay, for average prices.
+  let imported = 0, exported = 0;
+  for (const d of view.days) for (let i = 0; i < 48; i++) { imported += d.imp[i]; exported += d.exp[i]; }
+  imported *= view.scale;
+  exported *= view.scale;
+
+  const per = x => ctx.toPeriod(x);
+  const centsText = x => `${(x * 100).toFixed(1)}c a kWh`;
+  const spec = [];                             // { label, values, show, better, group, cls }
+  const addRow = (label, values, show, better, cls) => spec.push({ label, values, show, better, cls });
+  const group = label => spec.push({ group: label });
+  const moneyRow = (label, f, cls) => {
+    const values = rows.map(f);
+    if (cls || values.some(v => Math.round(v) !== 0)) addRow(label, values.map(Math.round), values.map(money), "low", cls);
+  };
+
+  group(`Cost ${ctx.per}, in parts`);
+  moneyRow("Daily charges", r => per(r.parts.supply));
+  moneyRow("Usage", r => per(r.parts.usage));
+  moneyRow("Discounts", r => -per(r.parts.discount));
+  moneyRow("Solar credits", r => -per(r.parts.fit));
+  moneyRow("Fees", r => per(r.parts.fees));
+  if (ctx.withCredits) moneyRow("Sign-up credit used", r => -per(ctx.creditUsed(r)));
+  moneyRow(`Cost ${ctx.per}`, r => ctx.avg(r), "total");
+  const avgs = rows.map(r => Math.round(ctx.avg(r))), low = Math.min(...avgs);
+  addRow("More than the cheapest", rows.map(() => null), avgs.map(a => (a === low ? "Cheapest" : `${money(a - low)} more`)), null);
+
+  // The whole cost if you stayed 3 months, 6 months, 1 year or 2 years, each priced on the same
+  // months of last year, with only the part of a credit that those bills can use.
+  group("Total cost if you stay");
+  const views = new Map(STAYS.map(m => [m, stayView(state.meter, m)]));
+  for (const m of STAYS) {
+    const v = views.get(m);
+    const totals = rows.map(r => {
+      const cost = priceParts(r.plan.electricityContract, v).total;
+      if (!ctx.withCredits || r === ctx.currentRow || !(r.credit > 0)) return cost;
+      const perDay = r.perDay || state.yearById.get(r.id).perDay;
+      return cost - sum(creditUse(stayBills(state.meter, perDay, m, cost), r.credit, r.timing));
+    });
+    addRow(STAY_NAMES[m] + (v.fallback ? " (from your yearly average)" : ""), totals.map(Math.round), totals.map(money), "low");
+  }
+
+  group(`Prices, including GST`);
+  const daily = rows.map(r => r.parts.supply / view.stayDays);
+  addRow("Daily charge", daily.map(x => Math.round(x * 100)), daily.map(x => `$${x.toFixed(2)} a day`), "low");
+  const avgUse = rows.map(r => r.parts.usage / imported);
+  addRow("Your average usage price", avgUse.map(x => Math.round(x * 1000)), avgUse.map(centsText), "low");
+  addRow("Usage prices", rows.map(() => null), rows.map(r => priceRange(r.plan.electricityContract)), null);
+  if (ctx.hasSolar) {
+    const fit = rows.map(r => (exported > 0 ? r.parts.fit / exported : 0));
+    addRow("Your average solar credit", fit.map(x => Math.round(x * 1000)), fit.map(centsText), "high");
+  } else {
+    const top = rows.map(r => topSolarRate(r.plan.electricityContract));
+    addRow("Solar credit", top.map(x => Math.round(x * 1000)), rows.map(r => solarText(r.plan.electricityContract)), "high");
+  }
+  addRow("Sign-up credit", rows.map(r => (r === ctx.currentRow ? null : r.credit || 0)),
+         rows.map(r => (r === ctx.currentRow ? "Yours already" : creditTimingText(r))), "high");
+  const exits = rows.map(r => (r.own ? null : exitFee(r.plan.electricityContract)));
+  addRow("Exit fee", exits, exits.map(x => (x == null ? "Not known" : x > 0 ? money(x) : "None")), "low");
+  addRow("Kind", rows.map(() => null), rows.map(r => (r.model.startsWith("SINGLE_RATE") ? "Same price all day" : "Price varies by time of day")), null);
+  addRow("Prices fixed?", rows.map(() => null),
+         rows.map(r => (r.own ? "As you entered them" : r.plan.electricityContract.isFixed ? "Fixed for the contract" : "Can change with notice")), null);
+  addRow("Plan ID", rows.map(() => null), rows.map(r => (r.own ? "Your own entry" : r.plan.planId.split("@")[0])), null);
+
+  // Header: one column per plan, with its place in the list and a Remove button.
+  const totals = rows.map(r => Math.round(ctx.avg(r)));
+  const cheapest = Math.min(...totals);
+  const head = el("tr");
+  head.append(el("th", "", ""));
+  rows.forEach((r, i) => {
+    const th = el("th");
+    th.scope = "col";
+    if (totals[i] === cheapest && totals.some(t => t !== cheapest)) th.append(el("span", "tag best", "Cheapest of these"));
+    if (r === ctx.currentRow) th.append(el("span", "tag", "Your current plan"));
+    th.append(el("b", "", r.retailer), el("span", "name", r.name));
+    const place = list.indexOf(r);
+    th.append(el("span", "name", place >= 0 ? `Number ${place + 1} in your list` : "Hidden by your choices now"));
+    const rm = el("button", "", "Remove");
+    rm.type = "button";
+    rm.dataset.uncompare = r.id;
+    rm.setAttribute("aria-label", `Remove ${r.retailer} ${r.name} from the comparison`);
+    th.append(rm);
+    head.append(th);
+  });
+  const thead = el("thead");
+  thead.append(head);
+  const tbody = el("tbody");
+  for (const s of spec) {
+    const tr = el("tr", s.group ? "group" : s.cls || "");
+    const th = el("th", "", s.group || s.label);
+    th.scope = "row";
+    if (s.group) { th.colSpan = rows.length + 1; tr.append(th); tbody.append(tr); continue; }
+    tr.append(th);
+    const known = s.values.filter(v => v != null);
+    const best = s.better === "low" ? Math.min(...known) : Math.max(...known);
+    const differ = known.some(v => v !== known[0]);
+    rows.forEach((r, i) => {
+      const win = s.better && differ && s.values[i] === best;
+      const td = el("td", win ? "win" : "", s.show[i]);
+      if (win) td.append(el("span", "sr", " (best)"));
+      tr.append(td);
+    });
+    tbody.append(tr);
+  }
+  $("cmp-table").replaceChildren(thead, tbody);
+  renderChart(rows, ctx);
+}
+
+// What you would pay each month: the bill less any sign-up credit it uses. The chart shows the
+// running total from $0 today, or each month's own bill.
+function renderChart(rows, ctx) {
+  const months = state.stay;
+  const start = new Date();
+  const startUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const monthStart = m => new Date(addMonths(startUtc, m));
+  const labels = Array.from({ length: months }, (_, m) => MONTHS[monthStart(m).getUTCMonth()]);
+  const pays = rows.map(r => {
+    const credit = ctx.withCredits && r !== ctx.currentRow ? creditByMonth(r) : new Array(months).fill(0);
+    return billsFor(r).map((b, m) => b - credit[m]);
+  });
+  const running = pays.map(p => { let t = 0; return [0, ...p.map(x => (t += x))]; });
+  // "Difference": each plan's running total less the baseline's, so a small gap fills the
+  // chart. The baseline is your current plan if you compare it, else the cheapest plan here.
+  const ends = running.map(t => t[months]);
+  let base = rows.indexOf(ctx.currentRow);
+  if (base < 0) base = ends.indexOf(Math.min(...ends));
+  const diffs = running.map(t => t.map((x, m) => x - running[base][m]));
+  const mode = state.chart;
+  const values = mode === "diff" ? diffs : mode === "total" ? running : pays;
+  const series = rows.map((r, i) => ({ values: values[i], cls: `s${i}`, dash: DASHES[i] }));
+  const finals = rows.map((r, i) => `${planLabel(r)}: ${money(mode === "diff" ? diffs[i][months] : running[i][months])}`);
+  const what = mode === "diff" ? `how much more each plan costs than ${planLabel(rows[base])}`
+    : mode === "total" ? "the running total" : "each month's bill";
+  drawChart($("chart"), series, labels, mode === "month" ? "month" : "total",
+            `Line chart of ${what} over ${STAY_NAMES[months]}. At the end: ${finals.join("; ")}.`);
+
+  $("legend").replaceChildren(...rows.map((r, i) => {
+    const li = el("li");
+    const end = mode !== "diff" ? `${money(running[i][months])} over the year`
+      : i === base ? (rows[base] === ctx.currentRow ? "your current plan, the baseline" : "the cheapest here, the baseline")
+      : diffs[i][months] >= 0 ? `${money(diffs[i][months])} more over the year` : `${money(-diffs[i][months])} less over the year`;
+    li.append(lineSample(`s${i}`, DASHES[i]), `${r.retailer} · ${r.name}: ${end}`);
+    return li;
+  }));
+  const fmt = d => d.toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "UTC" });
+  const notes = [mode === "diff"
+    ? `How much more each plan would cost than ${planLabel(rows[base])}, added up month by month. Above $0 costs more; below $0 costs less. A line that crosses $0 changes from cheaper to dearer.`
+    : mode === "total" ? "The running total of what you would pay, from $0 today. A sign-up credit keeps a line flat while it pays the bills."
+    : "Each month's bill, after any sign-up credit that the bill uses."];
+  notes.push(`Month 1 runs from ${fmt(monthStart(0))} to ${fmt(new Date(addMonths(startUtc, 1) - DAY_MS))}.`);
+  if (!ctx.withCredits && rows.some(r => r.credit > 0 && r !== ctx.currentRow)) notes.push('Sign-up credits are not in these costs. To add them, switch on "Include sign-up credits in the cost".');
+  $("chart-note").textContent = notes.join(" ");
+
+  // The same numbers as a table, one row per month.
+  const head = el("tr");
+  head.append(el("th", "", "Month"), ...rows.map(r => el("th", "", `${r.retailer} · ${r.name}`)));
+  const thead = el("thead");
+  thead.append(head);
+  const tbody = el("tbody");
+  for (let m = 0; m < months; m++) {
+    const tr = el("tr");
+    const d = monthStart(m);
+    const th = el("th", "", `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`);
+    th.scope = "row";
+    tr.append(th, ...pays.map(p => el("td", "", money(p[m]))));
+    tbody.append(tr);
+  }
+  const tr = el("tr", "total");
+  const th = el("th", "", "Whole stay");
+  th.scope = "row";
+  tr.append(th, ...running.map(t => el("td", "", money(t[months]))));
+  tbody.append(tr);
+  $("cmp-months").replaceChildren(thead, tbody);
+}
+
+// A plain line chart, drawn as SVG to fit its box. mode "total" puts months + 1 points on the
+// month boundaries (from $0 at the start); "month" puts one point in the middle of each month.
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svgEl(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function niceStep(raw) {
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  return [1, 2, 2.5, 5, 10].find(f => f * mag >= raw) * mag;
+}
+function drawChart(box, series, labels, mode, label) {
+  const W = Math.max(280, Math.round(box.clientWidth || 600)), H = W < 480 ? 220 : 260;
+  const left = 56, right = 12, top = 10, bottom = 28;
+  const all = series.flatMap(s => s.values);
+  const step = niceStep(Math.max(1, Math.max(...all) - Math.min(0, ...all)) / 4);
+  const lo = Math.floor(Math.min(0, ...all) / step) * step, hi = Math.ceil(Math.max(1, ...all) / step) * step;
+  const n = labels.length, width = W - left - right;
+  const x = i => left + width * (mode === "total" ? i / n : (i + 0.5) / n);
+  const y = v => top + (H - top - bottom) * (hi - v) / (hi - lo);
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img", "aria-label": label });
+  for (let v = lo; v <= hi + step / 2; v += step) {
+    svg.append(svgEl("line", { class: v === 0 ? "axis" : "grid", x1: left, x2: W - right, y1: y(v), y2: y(v) }));
+    const t = svgEl("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end" });
+    t.textContent = money(v);
+    svg.append(t);
+  }
+  // Month names under the middle of each month; every second or third one when space is short.
+  const every = Math.max(1, Math.ceil(n / Math.floor(width / 34)));
+  labels.forEach((name, i) => {
+    if (i % every) return;
+    const t = svgEl("text", { x: left + width * (i + 0.5) / n, y: H - 8, "text-anchor": "middle" });
+    t.textContent = name;
+    svg.append(t);
+  });
+  for (const s of series) {
+    svg.append(svgEl("polyline", { class: `line ${s.cls}`, points: s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" "),
+                                    "stroke-dasharray": s.dash || "none" }));
+    s.values.forEach((v, i) => svg.append(svgEl("circle", { class: s.cls, cx: x(i).toFixed(1), cy: y(v).toFixed(1), r: n > 12 ? 2 : 3 })));
+  }
+  box.replaceChildren(svg);
+}
+function lineSample(cls, dash) {
+  const svg = svgEl("svg", { width: 30, height: 10, "aria-hidden": "true" });
+  svg.append(svgEl("line", { class: `line ${cls}`, x1: 1, x2: 29, y1: 5, y2: 5, "stroke-dasharray": dash || "none" }));
+  return svg;
+}
+
+// Small readers for the comparison table.
+function priceRange(c) {
+  const prices = (c.tariffPeriod || []).flatMap(tp => (tp.rateBlockUType === "singleRate" ? [tp.singleRate] : tp.timeOfUseRates || []))
+    .flatMap(b => (b.rates || []).map(x => Number(x.unitPrice) * 1.1)).filter(Number.isFinite);
+  if (!prices.length) return "";
+  const lo = Math.min(...prices), hi = Math.max(...prices);
+  const c1 = x => (x === 0 ? "free" : cents(x));
+  return lo === hi ? `${c1(lo)} a kWh` : `${c1(lo)} to ${cents(hi)} a kWh`;
+}
+function topSolarRate(c) {
+  const f = (c.solarFeedInTariff || [])[0];
+  if (!f) return 0;
+  const prices = f.tariffUType === "singleTariff" ? f.singleTariff.rates.map(b => Number(b.unitPrice))
+    : (f.timeVaryingTariffs || []).flatMap(t => t.rates.map(b => Number(b.unitPrice)));
+  return Math.max(0, ...prices.filter(Number.isFinite));
+}
+function exitFee(c) {
+  const exit = (c.fees || []).filter(x => x.type === "EXIT").map(x => Number(x.amount) || 0);
+  return exit.length ? Math.max(...exit) : 0;
+}
+function creditTimingText(r) {
+  if (!(r.credit > 0)) return "None";
+  const t = r.timing;
+  if (t.instalments > 1) return `${money(r.credit)}, in ${t.instalments} monthly parts`;
+  return t.paidBy > 1 ? `${money(r.credit)}, on about bill ${t.paidBy}` : `${money(r.credit)}, on the first bill`;
+}
+
+// ---- Rates and details -------------------------------------------------------------------------
+// Rates shown include GST, like the costs. Solar credits are GST-free.
+const cents = x => `${(x * 100).toFixed(2).replace(/0$/, "").replace(/\.0$/, "")}c`;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function clock(t) {
+  const m = hhmm(t);
+  if (m === 0 || m >= 1439) return "midnight";
+  if (m === 720) return "midday";
+  const h = Math.floor(m / 60), mm = m % 60;
+  return `${h % 12 || 12}${mm ? ":" + String(mm).padStart(2, "0") : ""}${h < 12 ? "am" : "pm"}`;
+}
+function daysLabel(days) {
+  const d = DOW.filter(x => (days || DOW).includes(x));
+  if (d.length === 7) return "";
+  if (!d.length) return (days || []).includes("PUBLIC_HOLIDAYS") ? "public holidays " : "";
+  if (d.join() === "MON,TUE,WED,THU,FRI") return "weekdays ";
+  if (d.join() === "SAT,SUN") return "weekends ";
+  return d.map(x => x[0] + x.slice(1).toLowerCase()).join(", ") + " ";
+}
+function windowsLabel(ws) {
+  // Minutes from midnight; an end of 00:00 or 23:59 means midnight (1440).
+  const list = (ws || []).map(w => {
+    const b = hhmm(w.endTime);
+    return { days: daysLabel(w.days), a: hhmm(w.startTime), b: b === 0 || b >= 1439 ? 1440 : b };
+  });
+  // "9pm to midnight" + "midnight to 11am" on the same days reads as "9pm to 11am".
+  for (const w of list) {
+    const next = list.find(x => x !== w && x.days === w.days && x.a === 0 && x.b < 1440 && w.b === 1440 && !x.used);
+    if (next && w.a !== 0) { w.b = next.b; next.used = true; }
+  }
+  const at = m => clock(`${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  const parts = list.filter(w => !w.used).map(w =>
+    w.days + (w.a === w.b || (w.a === 0 && w.b === 1440) ? "all day" : `${at(w.a)} to ${at(w.b)}`));
+  return [...new Set(parts)].join(", ");
+}
+function tierText(rates, gst, zero = "free") {
+  const price = x => (Number(x) === 0 ? zero : `${cents(Number(x) * gst)} a kWh`);
+  if (rates.length === 1) return price(rates[0].unitPrice);
+  return rates.map((b, i) => (b.volume ? `${i ? "next" : "first"} ${blockVolume(b.volume).toLocaleString("en-AU")} kWh a day ${price(b.unitPrice)}`
+                                        : `then ${price(b.unitPrice)}`)).join(", ");
+}
+function seasonLabel(tp) {
+  const f = md => { const [m, d] = md.split("-").map(Number); return `${d} ${MONTHS[m - 1]}`; };
+  return `${f(tp.startDate || "01-01")} to ${f(tp.endDate || "12-31")}`;
+}
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function rateList(r) {
+  const p = r.plan, c = p.electricityContract;
+  const rows = [];
+  const tps = c.tariffPeriod;
+  for (const tp of tps) {
+    const season = tps.length > 1 ? `${seasonLabel(tp)}: ` : "";
+    rows.push([`${season}Daily charge`, `$${(Number(tp.dailySupplyCharge || 0) * 1.1).toFixed(2)} a day`]);
+    const bands = tp.rateBlockUType === "singleRate" ? [{ rates: tp.singleRate.rates }] : tp.timeOfUseRates;
+    for (const b of bands) {
+      const when = b.timeOfUse ? windowsLabel(b.timeOfUse) : "all day";
+      const name = (b.displayName || "").trim();
+      const named = name && !/^(tariff|rate)\s*\d*$/i.test(name) ? `${name}, ` : "";
+      rows.push([season + cap(named + when), tierText(b.rates, 1.1)]);
+    }
+  }
+  if (c.timeZone === "AEST" && !r.model.startsWith("SINGLE_RATE")) rows.push(["Times", "Standard time all year: an hour later during daylight saving"]);
+  const fit0 = (c.solarFeedInTariff || [])[0];
+  if (fit0 && fit0.tariffUType === "singleTariff") rows.push(["Solar credit", tierText(fit0.singleTariff.rates, 1, "0c a kWh")]);
+  else if (fit0) for (const t of fit0.timeVaryingTariffs || []) rows.push([`Solar credit, ${windowsLabel(t.timeVariations)}`, tierText(t.rates, 1, "0c a kWh")]);
+  else rows.push(["Solar credit", "None"]);
+  if (r.own) {
+    if (r.credit > 0) rows.push(["Sign-up credit", `${money(r.credit)}${r.timing.instalments > 1 ? `, paid over ${r.timing.instalments} months` : ""}`]);
+    return defList(rows);
+  }
+  for (const x of c.discounts || []) {
+    const pct = rate => `${+(Number(rate) * 100).toFixed(2)}%`;
+    if (x.methodUType === "percentOfBill") rows.push(["Discount", `${pct(x.percentOfBill.rate)} off (${x.displayName || "discount"})`]);
+    else if (x.methodUType === "percentOfUse" && !/c\/kWh/.test(x.description || "")) rows.push(["Discount", `${pct(x.percentOfUse.rate)} off usage (${x.displayName || "discount"})`]);
+    else if (x.methodUType === "percentOfUse") rows.push(["Discount", x.description]);
+  }
+  const fees = yearlyFees(c);
+  const greenPower = (c.fees || []).some(x => /GreenPower/.test(x.description || ""));
+  if (fees) rows.push([greenPower ? "GreenPower charge" : "Membership fee", `${money(fees)} a year, counted in the cost`]);
+  const exit = (c.fees || []).filter(x => x.type === "EXIT").map(x => Number(x.amount) || 0);
+  rows.push(["Exit fee", exit.length && Math.max(...exit) > 0 ? money(Math.max(...exit)) : "None"]);
+  // Moving fees vary by job (remote or on site, business hours or not), so show the range.
+  const feeRange = types => {
+    const a = (c.fees || []).filter(x => types.includes(x.type)).map(x => Number(x.amount)).filter(Number.isFinite);
+    if (!a.length) return null;
+    const lo = Math.min(...a), hi = Math.max(...a);
+    return lo === hi ? money(lo) : `${money(lo)} to ${money(hi)}`;
+  };
+  const moveIn = feeRange(["CONNECTION", "RECONNECTION"]), moveOut = feeRange(["DISCONNECTION", "DISCONNECT_MOVE_OUT"]);
+  if (moveIn) rows.push(["Moving in (connection)", `${moveIn}, not counted in the cost`]);
+  if (moveOut) rows.push(["Moving out (disconnection)", `${moveOut}, not counted in the cost`]);
+  rows.push(["Prices", c.isFixed ? "Fixed for the contract" : "Can change with notice"]);
+  const who = (c.eligibility || []).map(e => e.information || "").join(" ").replace(/\s+/g, " ").trim();
+  if (who) rows.push(["Who can get it", who.length > 300 ? who.slice(0, 297) + "…" : who]);
+  const from = Date.parse(p.effectiveFrom);
+  const planId = p.planId.split("@")[0];
+  rows.push(["Plan ID", planId + (Number.isFinite(from) ? `, in effect from ${new Date(from).toLocaleDateString(
+    "en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Melbourne" })}` : "")]);
+  const site = RETAILER_SITES[p.brandName];
+  const links = el("span");
+  if (site) links.append(link(site, `${p.brandName} website`), " · ");
+  links.append(link(`https://duckduckgo.com/?q=${encodeURIComponent(planId + " " + p.brandName)}`, "Search for its fact sheet"));
+  rows.push(["Links", links]);
+  return defList(rows);
+}
+
+function defList(rows) {
+  const dl = el("dl", "rates");
+  for (const [k, v] of rows) {
+    const dd = el("dd");
+    dd.append(v);
+    dl.append(el("dt", "", k), dd);
+  }
+  return dl;
+}
+
+// ---- Wiring ------------------------------------------------------------------------------------
+$("postcode").addEventListener("input", e => {
+  e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
+  render();
+});
+$("needs").addEventListener("click", e => {
+  const k = e.target.closest("[data-need]")?.dataset.need;
+  if (!k) return;
+  if (state.ticked.has(k)) state.ticked.delete(k); else state.ticked.add(k);
+  state.shown = FIRST_SHOWN;
+  render();
+});
+// On/off switches
+document.addEventListener("click", e => {
+  const s = e.target.closest('[role="switch"]');
+  if (!s) return;
+  const on = s.getAttribute("aria-checked") !== "true";
+  s.setAttribute("aria-checked", String(on));
+  if (s.dataset.option) { if (on) state.options.add(s.dataset.option); else state.options.delete(s.dataset.option); state.shown = FIRST_SHOWN; render(); }
+  if (s.id === "solar-switch") { state.showSolar = on; state.shown = FIRST_SHOWN; render(); }
+  if (s.id === "own-current") { state.ownCurrent = on; $("own-current-fields").hidden = !on; }
+});
+// One-of-several choices
+$("usage-mode").addEventListener("click", e => {
+  const b = e.target.closest("[data-usage]");
+  if (!b || b.dataset.usage === state.usage) return;
+  setUsage(b.dataset.usage);
+  if (state.usage === "sample") { useSample(); return; }
+  state.meter = state.fileMeter;
+  const m = state.fileMeter;
+  setNote("file-note", m ? `Usage from ${fmtDate(m.first)} to ${fmtDate(m.last)}.` : "");
+  priceIfReady();
+});
+$("sample-people").addEventListener("click", e => {
+  const b = e.target.closest("[data-people]");
+  if (!b) return;
+  state.people = Number(b.dataset.people);
+  setPressed("sample-people", "data-people", state.people);
+  useSample();
+});
+// One retailer's plans, from the "Retailer" box or a card's "See all N plans".
+$("retailer-filter").addEventListener("change", e => { state.retailer = e.target.value; state.shown = FIRST_SHOWN; render(); });
+$("all-retailers").addEventListener("click", () => { state.retailer = ""; state.shown = FIRST_SHOWN; render(); });
+$("own-pick-retailer").addEventListener("change", filterPick);
+$("own-search").addEventListener("input", filterPick);
+// Yearly, quarterly or monthly: the same choice on Check plans and on Compare.
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-period]");
+  if (!b) return;
+  state.period = b.dataset.period;
+  render();
+});
+$("chart-mode").addEventListener("click", e => {
+  const b = e.target.closest("[data-chart]");
+  if (!b) return;
+  state.chart = b.dataset.chart;
+  setPressed("chart-mode", "data-chart", state.chart);
+  renderCompare();
+});
+// Compare ticks on the cards, and Remove on the Compare page.
+$("cards").addEventListener("click", e => {
+  const see = e.target.closest("[data-retailer]");
+  if (see) {
+    state.retailer = see.dataset.retailer;
+    state.options.delete("best");
+    state.shown = FIRST_SHOWN;
+    render();
+    $("summary").scrollIntoView({ block: "center" });
+    return;
+  }
+  const b = e.target.closest("[data-compare]");
+  if (!b) return;
+  const id = b.dataset.compare;
+  state.compare = state.compare.includes(id) ? state.compare.filter(x => x !== id)
+    : state.compare.concat(id).slice(-COMPARE_MAX);
+  render();
+  // The cards are drawn again, so put keyboard focus back on the same tick.
+  [...document.querySelectorAll("[data-compare]")].find(x => x.dataset.compare === id)?.focus();
+});
+$("cmp-table").addEventListener("click", e => {
+  const b = e.target.closest("[data-uncompare]");
+  if (!b) return;
+  state.compare = state.compare.filter(x => x !== b.dataset.uncompare);
+  render();
+});
+$("compare-clear").addEventListener("click", () => { state.compare = []; render(); });
+$("clear").addEventListener("click", clearData);
+// The chart is drawn to fit its box, so draw it again when the window changes size.
+let resizeFrame = 0;
+window.addEventListener("resize", () => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => { if (!$("compare").hidden) renderCompare(); });
+});
+$("own-mode").addEventListener("click", e => {
+  const b = e.target.closest("[data-mode]");
+  if (!b) return;
+  state.ownMode = b.dataset.mode;
+  setPressed("own-mode", "data-mode", state.ownMode);
+  $("own-listed").hidden = state.ownMode !== "listed";
+  $("own-typed").hidden = state.ownMode !== "typed";
+});
+$("own-kind").addEventListener("click", e => {
+  const b = e.target.closest("[data-kind]");
+  if (!b) return;
+  state.ownKind = b.dataset.kind;
+  setPressed("own-kind", "data-kind", state.ownKind);
+  $("own-flat").hidden = state.ownKind !== "flat";
+  $("own-peak").hidden = state.ownKind !== "peak";
+});
+$("own-add").addEventListener("click", addOwn);
+$("more").addEventListener("click", () => {
+  const first = state.shown;
+  state.shown = first + PAGE;
+  render();
+  const next = $("cards").children[first];   // focus the first new card, not the vanished button
+  if (next) next.focus();
+});
+$("refresh").addEventListener("click", () => loadPlans(true));
+$("file").addEventListener("change", e => readFile(e.target.files[0]));
+const drop = $("drop");
+drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", e => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  readFile(e.dataTransfer.files[0]);
+});
+// Dropped anywhere else, the browser would open the file in place of this page.
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => {
+  e.preventDefault();
+  if (!drop.contains(e.target) && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+// Feedback links point at the form, or are hidden if there is none yet.
+for (const a of document.querySelectorAll(".feedback-link")) a.href = FEEDBACK_URL || "#";
+for (const e of document.querySelectorAll(".feedback-only")) e.hidden = !FEEDBACK_URL;
+// A saved copy is already offline, so it does not need the save link.
+if (location.protocol === "file:") $("save").hidden = true;
+// Straight after "Clear data": say so, empty the form (some browsers refill fields after a
+// reload), and wait to download prices until they are needed.
+if (location.hash === "#data-cleared") {
+  $("data-cleared").hidden = false;
+  state.deferLoad = true;
+  for (const i of document.querySelectorAll("input")) i.value = i.defaultValue;
+}
+window.addEventListener("hashchange", () => route(true));
+route(false);
+
+if (!state.deferLoad) loadPlans(false);
+</script>
+</body>
+</html>

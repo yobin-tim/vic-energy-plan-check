@@ -1,0 +1,7 @@
+# Never commit personal data
+*.csv
+*.CSV
+*.zip
+reference/allplans/
+private/
+.DS_Store
