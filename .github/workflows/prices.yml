@@ -1,0 +1,46 @@
+# Builds the site with this week's copy of every Victorian plan's prices, and publishes it to
+# GitHub Pages. Runs every Monday morning (Melbourne), whenever the site changes, and on demand.
+# The prices go only to the published site (prices/<network>.json), never into the repository,
+# so the history holds no weekly commits. If any download fails, the job fails and the site
+# keeps last week's copy; the page stops using a copy once it is 8 days old.
+name: Weekly prices
+
+on:
+  schedule:
+    - cron: "17 17 * * 0"        # Sunday 17:17 UTC = Monday 4:17 am in Melbourne (3:17 am in winter)
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download this week's prices
+        run: python3 reference/snapshot.py _site/prices
+      - name: Add the page
+        run: cp index.html _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

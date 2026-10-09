@@ -91,7 +91,7 @@ def price(c):
         return None
     usage = supply = fit = rebate = 0.0
     fits = c.get("solarFeedInTariff", [])
-    std = c.get("timeZone") == "AEST"               # windows stated in standard time all year
+    std = (c.get("timeZone") or "AEST") == "AEST"   # standard time all year (the default if absent)
     for dows, mns, imp, exp, mmdd, sdows, smns in days:
         if std: dows, mns = sdows, smns
         tp = next((t for t in tps if in_season(t, mmdd[24])), tps[0])

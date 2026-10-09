@@ -1,7 +1,12 @@
 # REFERENCE (Python prototype, 7 Oct 2026). Run from this folder; writes to ./allplans/.
-# Fetch every brand's current residential electricity plans on the United Energy network
-# from each retailer's public CDR endpoint (no login), then each plan's full detail.
-import json, subprocess, os, concurrent.futures as cf
+# Fetch every brand's current residential electricity plans on one network (United Energy
+# unless named, as the plan list spells it, e.g. "Citipower" or "AusNet Services
+# (electricity)") from each retailer's public CDR endpoint (no login), then each plan's full
+# detail. Other networks go to ./allplans-<network>/.
+import json, subprocess, os, sys, re, concurrent.futures as cf
+NETWORK = sys.argv[1] if len(sys.argv) > 1 else "United Energy"
+OUT = "allplans" if NETWORK == "United Energy" else "allplans-" + re.sub(r"[^a-z]+", "-", NETWORK.lower()).strip("-")
+os.makedirs(OUT, exist_ok=True)
 brands = json.load(open("retailer_sources.json"))["data"]
 def get(url, xv="1"):
     out = subprocess.run(["curl", "-s", "-m", "60", "-H", f"x-v: {xv}", "-H", "x-min-v: 1", url],
@@ -15,7 +20,7 @@ def plans_for(b):
         d = get(f"{base}?fuelType=ELECTRICITY&effective=CURRENT&page-size=1000&page={page}")
         if not d or "data" not in d: return b["brandName"], base, None
         for p in d["data"]["plans"]:
-            if "United Energy" in (p.get("geography") or {}).get("distributors", []) \
+            if NETWORK in (p.get("geography") or {}).get("distributors", []) \
                and p.get("customerType", "RESIDENTIAL") == "RESIDENTIAL":
                 ids.append(p["planId"])
         if page >= d["meta"].get("totalPages", 1): break
@@ -28,9 +33,9 @@ for name, base, ids in res:
     for pid in ids or []: jobs.append((name, base, pid))
 def detail(j):
     name, base, pid = j
-    path = f"allplans/{pid.replace('/','_')}.json"
+    path = f"{OUT}/{pid.replace('/','_')}.json"
     if os.path.exists(path): return
     d = get(f"{base}/{pid}", xv="3")
     if d: json.dump({"brandName": name, **d}, open(path, "w"))
 with cf.ThreadPoolExecutor(16) as ex: list(ex.map(detail, jobs))
-print("plans:", len(jobs), "saved:", len(os.listdir("allplans")))
+print("plans:", len(jobs), "saved:", len(os.listdir(OUT)))

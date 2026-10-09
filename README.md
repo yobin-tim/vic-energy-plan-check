@@ -12,5 +12,5 @@ Your usage file never leaves your device. Plan prices come from the government's
 public plan list.
 
 I made this for my own household and shared it in case it helps someone else. The costs
-are estimates, not financial advice. For now it works only in United Energy's area
-(south-east Melbourne).
+are estimates, not financial advice. It covers all five Victorian electricity networks; so far,
+only United Energy's usage file has been tried with it.

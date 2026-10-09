@@ -3,5 +3,8 @@
 *.CSV
 *.zip
 reference/allplans/
+reference/allplans-*/
 private/
+prices/
+_site/
 .DS_Store

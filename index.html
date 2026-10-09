@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
 <!-- The browser itself enforces the privacy promise: the page may only talk to the government plan feed. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://cdr.energymadeeasy.gov.au; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https://cdr.energymadeeasy.gov.au; img-src data:; base-uri 'none'; form-action 'none'">
 <title>Electricity plan check</title>
 <meta name="description" content="Every Victorian electricity plan, ranked by what your home would actually pay, from your own smart-meter file. Your file never leaves your device.">
 <style>
@@ -180,6 +180,7 @@
   .chart .axis { stroke: var(--muted); }
   .chart text { fill: var(--muted); font-size: 12px; font-family: inherit; }
   .chart .line { fill: none; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .guide { font-weight: 600; }
   .s0 { stroke: var(--s0); fill: var(--s0); } .s1 { stroke: var(--s1); fill: var(--s1); }
   .s2 { stroke: var(--s2); fill: var(--s2); } .s3 { stroke: var(--s3); fill: var(--s3); }
   .legend { list-style: none; padding: 0; margin: 8px 0 0; font-size: .9rem; }
@@ -231,14 +232,14 @@
     <input id="postcode" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="4">
     <p id="postcode-note" class="note warn" hidden></p>
     <p class="label">Your <a href="#w-network">network</a></p>
-    <div class="tiles" role="group" aria-label="Your network">
-      <button type="button" class="tile" aria-pressed="true"><b>United Energy</b><span>South-east Melbourne</span></button>
-      <button type="button" class="tile" disabled><b>CitiPower</b><span>Inner Melbourne</span></button>
-      <button type="button" class="tile" disabled><b>Jemena</b><span>North-west Melbourne</span></button>
-      <button type="button" class="tile" disabled><b>AusNet Services</b><span>Eastern Victoria</span></button>
-      <button type="button" class="tile" disabled><b>Powercor</b><span>Western Victoria</span></button>
+    <div id="networks" class="tiles" role="group" aria-label="Your network">
+      <button type="button" class="tile" data-network="United Energy" aria-pressed="true"><b>United Energy</b><span>South-east Melbourne</span></button>
+      <button type="button" class="tile" data-network="CitiPower" aria-pressed="false"><b>CitiPower</b><span>Inner Melbourne</span></button>
+      <button type="button" class="tile" data-network="Jemena" aria-pressed="false"><b>Jemena</b><span>North-west Melbourne</span></button>
+      <button type="button" class="tile" data-network="AusNet Services" aria-pressed="false"><b>AusNet Services</b><span>Eastern Victoria</span></button>
+      <button type="button" class="tile" data-network="Powercor" aria-pressed="false"><b>Powercor</b><span>Western Victoria</span></button>
     </div>
-    <p class="note">Only United Energy works now. Your bill shows the name of your network.</p>
+    <p id="network-note" class="note">Your postcode picks your network. Your bill also names it.</p>
   </section>
 
   <section class="step">
@@ -250,7 +251,8 @@
     <div id="usage-file">
       <details class="howto">
         <summary>How to get this file</summary>
-        <p>Sign in to United Energy's myEnergy website. Download your usage as a "detailed report" (a .csv file). <a href="#w-usage-file">What is a usage file?</a></p>
+        <p><span id="howto-steps">Sign in to United Energy's myEnergy website. Download your usage as a "detailed report" (a .csv file).</span> <a href="#w-usage-file">What is a usage file?</a></p>
+        <p id="howto-untested" class="note" hidden><span id="untested-name"></span> If yours does not load, try a sample home, and <a class="feedback-link" href="#" target="_blank" rel="noopener">please tell me</a>.</p>
       </details>
       <label id="drop" class="drop">
         <input id="file" type="file" accept=".csv,text/csv">
@@ -422,7 +424,7 @@
   </nav>
 
   <h2 id="how-prices">Where the prices come from</h2>
-  <p>Every retailer must publish its plans in the government's public plan list. The law that requires this is the <a href="#w-cdr">Consumer Data Right</a>. The same list feeds Energy Made Easy and Victorian Energy Compare. When you open this page, it downloads today's plans for your <a href="#w-network">network</a>. It keeps them on your device for one day.</p>
+  <p>Every retailer must publish its plans in the government's public plan list. The law that requires this is the <a href="#w-cdr">Consumer Data Right</a>. The same list feeds Energy Made Easy and Victorian Energy Compare. Once a week, this site saves a copy of every plan on each Victorian <a href="#w-network">network</a>. When you open the page, it downloads that copy for your network: one small file, so it takes a second or two. If the copy is missing or more than 8 days old, or you press "Get today's prices", the page downloads today's plans from the government's list instead, which takes about 20 seconds. It keeps the prices on your device for one day.</p>
 
   <h2 id="how-usage">Your usage</h2>
   <p>Your <a href="#w-usage-file">usage file</a> shows how much power your home took from the grid in each 5-minute or 30-minute interval. It also shows how much <a href="#w-solar">solar</a> power your home sent out. The page reads the last 12 months of the file. For each day that is missing from the file, the page uses your average day.</p>
@@ -431,8 +433,9 @@
   <p>If you do not have your usage file, you can price plans on a sample home with 1 to 5 or more people. It is an average home, not yours. So please use it to get a feel for the plans, and use your own file when you can.</p>
   <ul>
     <li>How much it uses in each season comes from the Australian Energy Regulator's <a href="https://www.aer.gov.au/system/files/Residential%20energy%20consumption%20benchmarks%20-%209%20December%202020_0.pdf" target="_blank" rel="noopener">benchmarks for Victorian homes</a> (Frontier Economics, 2020). For example, a 2-person home uses about 4,840 kWh a year, most of it in winter.</li>
-    <li>When in the day it uses power comes from all homes on United Energy's network in 2024 and 2025. This is the market operator's data, published by the <a href="https://www.esc.vic.gov.au/electricity-and-gas/prices-tariffs-and-benchmarks/victorian-default-offer/victorian-default-offer-price-review-2026-27" target="_blank" rel="noopener">Essential Services Commission</a>.</li>
+    <li>When in the day it uses power comes from all homes on your network in 2024 and 2025. This is the market operator's data, published by the <a href="https://www.esc.vic.gov.au/electricity-and-gas/prices-tariffs-and-benchmarks/victorian-default-offer/victorian-default-offer-price-review-2026-27" target="_blank" rel="noopener">Essential Services Commission</a>.</li>
     <li>That average includes homes with solar panels, so the sample home uses a little less power at midday than a home without solar.</li>
+    <li>The seasonal figures are for Melbourne's climate. A home in a colder or hotter part of Victoria may use more.</li>
   </ul>
   <p>Your own home could use much more or much less, and at quite different times. That changes which plans come out cheapest, most of all for plans whose price changes through the day.</p>
 
@@ -463,7 +466,7 @@
 
   <h2 id="how-compare">Comparing plans</h2>
   <p>Press "Compare" on two to four plans. The <a href="#compare">Compare</a> page then shows them side by side: each part of the cost, and the prices. Green marks the best value in each row and the cheapest plan overall.</p>
-  <p>A chart shows what you would pay month by month, on last year's usage. It opens on the difference from the cheapest plan that you compare, or from your current plan if you compare it. This makes small differences easy to see. A sign-up credit shows as smaller bills at the start.</p>
+  <p>A chart shows what you would pay month by month, on last year's usage. It opens on the difference from the cheapest plan that you compare, or from your current plan if you compare it. That plan is the line at $0. Up is always better: a line above $0 saves you money, and a line below $0 costs you more. This makes small differences easy to see. A sign-up credit shows as smaller bills at the start.</p>
   <p>The Compare page also shows the cost of each plan over 3 months, 6 months, 1 year and 2 years.</p>
   <p>To compare plans from one retailer, choose the retailer in the list's "Retailer" box. "Best plan from each retailer only" shows the cheapest plan of each retailer. Each card then has a link to see all of that retailer's plans.</p>
 
@@ -485,7 +488,7 @@
 
   <h2 id="how-not-covered">What is not covered</h2>
   <ul>
-    <li>Networks other than United Energy, for now.</li>
+    <li>Usage files from CitiPower, Powercor, Jemena and AusNet Services: none has been tried with this page yet. If yours does not load, use a sample home, and please tell me.</li>
     <li>Gas.</li>
     <li>Plans for a separate hot-water circuit (<a href="#w-controlled-load">controlled load</a>), and plans with <a href="#w-demand">demand charges</a>.</li>
     <li>Fees that you can avoid or that you pay only once, such as paper bills, card payments and <a href="#w-connection">connection fees</a>. Each card lists them under "Rates and details".</li>
@@ -512,20 +515,34 @@
   <h1>Your data</h1>
   <p class="lede">The short version: your usage file never leaves your device, and I never see it. Here is everything the page does with data.</p>
   <nav class="toc" aria-label="On this page">
-    <a href="#data-file">Your file</a><a href="#data-online">What goes online</a><a href="#data-kept">What is kept</a>
+    <a href="#data-file">Your file</a><a href="#data-levels">Three levels</a><a href="#data-online">What goes online</a><a href="#data-kept">What is kept</a>
     <a href="#data-clear">Clear your data</a><a href="#data-links">Links</a><a href="#data-offline">Offline</a>
     <a href="#data-none">Not here</a><a href="#data-check">Check for yourself</a>
   </nav>
 
-  <h2 id="data-file">Your usage file</h2>
-  <p>Your browser reads the file right here on your device. It is never uploaded, I never see it, and nothing about it is saved: close the page and it is gone. The file also holds your meter's ID number. The page skips it and never shows it.</p>
+  <h2 id="data-file">What the page reads from your usage file</h2>
+  <p>Your browser reads the file right here on your device. It is never uploaded, I never see it, and nothing about it is saved: close the page and it is gone. From the file, the page reads:</p>
+  <ul>
+    <li>The date of each day, and how much power your home took from the grid in each 5 or 30 minutes. It uses the last 12 months.</li>
+    <li>How much solar power your home sent out, if any.</li>
+    <li>The first four digits of your meter's ID number (the NMI). Each network's meter IDs start with its own digits, so these four digits tell the page which network the file came from. The page keeps only the network's name. It never keeps, shows or sends the digits or the rest of the ID.</li>
+  </ul>
+  <p>It skips everything else in the file, such as the meter's serial number and the notes on estimated readings.</p>
+
+  <h2 id="data-levels">Three levels of privacy</h2>
+  <p>Everything on this page belongs to one of three levels:</p>
+  <ul>
+    <li><b>On your device only.</b> Your file, your postcode, your answers and every calculation. Nothing from this level leaves your device.</li>
+    <li><b>Public data only.</b> The page downloads public plan prices. It sends nothing about you. This is the only thing the page does online today.</li>
+    <li><b>Sent only when you ask.</b> Nothing on the page does this today. If a future feature needs it (for example, reading a photo of a bill), the page will name the service, ask you each time, and do it only if you say yes.</li>
+  </ul>
 
   <h2 id="data-online">What goes online</h2>
-  <p>The page goes online for one thing: to download today's public plan prices from the government's plan list (cdr.energymadeeasy.gov.au). Those requests say nothing about you. They do not include your postcode, your usage or your answers.</p>
+  <p>The page goes online for one thing: public plan prices. First it downloads this site's weekly copy of the government's plan list, from the same address as the page. If that copy is missing or out of date, or you ask for today's prices, it downloads them from the government's plan list itself (cdr.energymadeeasy.gov.au). Those requests say nothing about you. They do not include your postcode, your usage or your answers.</p>
   <p>To make sure of that, the page tells your browser to block every other address. This is a <a href="#w-csp">content security policy</a>. So even if I made a mistake in the code, your data could not go anywhere else.</p>
 
   <h2 id="data-kept">What is kept on this device</h2>
-  <p>Only that public price list, for one day, so your next visit is quick. The page does not keep your file, your postcode, your ticks or anything you type.</p>
+  <p>Only public data. The price list, for one day, so your next visit is quick. And a short code for each plan's prices from your last visit, so the page can tell you which plans changed since then. The page does not keep your file, your postcode, your ticks or anything you type.</p>
 
   <h2 id="data-clear">Clear your data</h2>
   <p>The site sets no cookies. Your browser's history will show which pages of the site you opened, such as "How it works", but never your file or your answers. Your browser's settings can clear that history.</p>
@@ -554,7 +571,7 @@
   <p class="lede">Plain meanings for the words on this site.</p>
   <dl class="words">
     <dt id="w-network">Network</dt>
-    <dd>The company that owns the poles and wires in your area and reads your meter. In south-east Melbourne, it is United Energy. You cannot choose it. It comes with your address.</dd>
+    <dd>The company that owns the poles and wires in your area and reads your meter. Victoria has five: CitiPower (inner Melbourne), Jemena (north-west Melbourne), United Energy (south-east Melbourne), AusNet Services (eastern Victoria) and Powercor (western Victoria). You cannot choose it. It comes with your address.</dd>
     <dt id="w-retailer">Retailer</dt>
     <dd>The company that sells you electricity and sends your bill. You can choose it.</dd>
     <dt id="w-plan">Plan and plan ID</dt>
@@ -592,7 +609,7 @@
     <dt id="w-old-meter">Old-style meter</dt>
     <dd>A meter that only keeps a running total. A person reads it on site. Other names for it are basic meter and accumulation meter.</dd>
     <dt id="w-usage-file">Usage file</dt>
-    <dd>A download of your smart meter readings from your network's website, as a .csv file. Its format is a version of the national NEM12 format.</dd>
+    <dd>A download of your smart meter readings from your network's website, as a .csv file. Most networks use a version of the national NEM12 format; Jemena uses its own.</dd>
     <dt id="w-controlled-load">Controlled load</dt>
     <dd>A circuit with its own meter, usually for off-peak hot water, with its own lower rate.</dd>
     <dt id="w-demand">Demand charge</dt>
@@ -604,7 +621,7 @@
     <dt id="w-cdr">Consumer Data Right</dt>
     <dd>The law that makes retailers publish their plans in a standard, public format. This site reads that data.</dd>
     <dt id="w-csp">Content security policy</dt>
-    <dd>A rule that a web page gives your browser about which addresses the page can contact. This site allows only the government plan list.</dd>
+    <dd>A rule that a web page gives your browser about which addresses the page can contact. This site allows only its own address and the government plan list.</dd>
   </dl>
 </section>
 
@@ -618,7 +635,7 @@
     <a id="save" href="index.html" download="electricity-plan-check.html">Save this page to use offline</a>
     <a href="https://github.com/yobin-tim/vic-energy-plan-check" target="_blank" rel="noopener">Source code</a>
   </nav>
-  <p>I made this for my own household and shared it in case it helps you. Estimates only, not financial advice (<a href="#how-limits">the limits</a>).</p>
+  <p>I made this for my own household and shared it in case it helps you. Estimates only, not financial advice. <a href="#how-limits">See the limitations</a>.</p>
   <p>Prices come from the government's public plan list. No sign-up, no tracking. Made with Claude Opus 5.5, an AI model by Anthropic.</p>
 </footer>
 
@@ -640,47 +657,42 @@ const DOW = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 const DAY_MS = 86400000;
 
 // ---- 1. Meter file --------------------------------------------------------------------
-// NEM12-style file: a "200" row starts a channel (E1 = power from the grid, B1 = solar sent
-// out), and each "300" row holds one day of readings for that channel. The NMI (the meter's
-// ID, in the 200 row and the file name) is never read into memory.
+// Two layouts, both one day of readings per row, on standard time (AEST) all year:
+//   - NEM12, the national format (United Energy, CitiPower, Powercor and AusNet): a "200" row
+//     starts a channel (E1 = power from the grid, B1 = solar sent out), and each "300" row
+//     holds one day of readings for that channel. The "100" header row is often missing.
+//   - Jemena's: a header row starting "NMI", then one row per meter, kind and day: NMI, meter
+//     serial number, CON/GEN ("Consumption" or "Generation"), date, an estimated flag, then
+//     the readings (288 five-minute columns, or 48 half hours), in kWh.
+// The NMI (the meter's ID, in the rows and the file name) is never kept or shown. Only its
+// first four digits are looked at, once, to name the file's network; only that name is kept.
+// The digits for each network are the ones Victorian Energy Compare checks (8 Oct 2026).
+const NMI_NETWORKS = { 6407: "United Energy", 6408: "United Energy", 6102: "CitiPower", 6103: "CitiPower",
+  6203: "Powercor", 6204: "Powercor", 6001: "Jemena", 6305: "AusNet Services", 6306: "AusNet Services" };
+const nmiNetwork = nmi => NMI_NETWORKS[String(nmi || "").slice(0, 4)] || null;
+const cells = line => line.split(",").map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+// A reading cell: a number, or NaN when it is blank (blank means missing, not zero).
+const reading = x => (x === "" ? NaN : Number(x));
+const SECOND_METER = "This file has a second meter (often a separate hot-water circuit). That is not supported yet. Try a sample home instead.";
+
 function parseMeter(text) {
-  const raw = { E1: new Map(), B1: new Map() };
-  const other = new Set();
-  let ch = null, n = 0, unit = 1;
-  for (const line of text.split(/\r?\n/)) {
-    const r = line.split(",");
-    if (r[0] === "200") {
-      const uom = (r[7] || "").toUpperCase();
-      ch = r[4] || r[3];                       // NMI suffix, e.g. "E1"
-      n = 1440 / parseInt(r[8], 10);           // readings per day (288 for 5-minute data)
-      unit = uom === "WH" ? 0.001 : 1;         // some files use Wh instead of kWh
-      if (!raw[ch] && (uom === "KWH" || uom === "WH")) other.add(ch);
-      if (!(n >= 48 && n % 48 === 0)) throw new Error("This file's reading interval is not supported.");
-    } else if (r[0] === "300" && raw[ch]) {
-      const v = r.slice(2, 2 + n).map(Number);
-      // A day without a full set of readings is treated as missing (it is filled in by scaling).
-      if (v.length === n && v.every(Number.isFinite)) raw[ch].set(r[1], v.map(x => x * unit));
-    }
-  }
-  if (!raw.E1.size) throw new Error("This does not look like a United Energy usage file.");
-  if (other.size) throw new Error("This file has a second meter (often a separate hot-water circuit). That is not supported yet.");
+  const lines = text.split(/\r?\n/);
+  const head = cells(lines.find(l => l.trim()) || "");
+  const raw = /^NMI$/i.test(head[0] || "") ? readJemena(lines) : readNem12(lines);
+  if (!raw.E1.size) throw new Error("This does not look like a usage file from your network's website.");
+  const network = raw.network || null;
 
   // Window: the 365 days ending on the last day in the file.
   const last = [...raw.E1.keys()].sort().pop();
   const end = Date.UTC(+last.slice(0, 4), +last.slice(4, 6) - 1, +last.slice(6, 8)) + DAY_MS;
   const start = end - 365 * DAY_MS;
-  const step = n / 48;                         // readings per half hour
   const days = [];
   for (let t = start; t < end; t += DAY_MS) {
     const d = new Date(t);
     const key = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
-    const E = raw.E1.get(key);
-    if (!E) continue;
-    const B = raw.B1.get(key);                 // no B1 channel means no solar
-    const imp = new Float64Array(48), exp = new Float64Array(48);
-    for (let i = 0; i < 48; i++) {
-      for (let k = i * step; k < (i + 1) * step; k++) { imp[i] += E[k]; if (B) exp[i] += B[k]; }
-    }
+    const imp = raw.E1.get(key);
+    if (!imp) continue;
+    const exp = raw.B1.get(key) || new Float64Array(48);   // no B1 channel means no solar
     days.push({ imp, exp, ...localTimes(t) });
   }
   return {
@@ -688,7 +700,71 @@ function parseMeter(text) {
     scale: 365 / days.length,                  // annualise over any missing days
     first: start, last: end - DAY_MS,
     hasSolar: days.some(d => d.exp.some(x => x > 0)),
+    network,                                   // the file's network, or null if unknown
   };
+}
+
+// One day's readings (n a day, n a multiple of 48) as 48 half-hour totals, or null when any
+// reading is missing: a day without a full set is left out (scaling fills it in).
+function halfHours(v, n) {
+  if (v.length !== n || !v.every(Number.isFinite)) return null;
+  const step = n / 48, out = new Float64Array(48);
+  for (let i = 0; i < 48; i++) for (let k = i * step; k < (i + 1) * step; k++) out[i] += v[k];
+  return out;
+}
+
+// NEM12. Returns { E1, B1 }: maps from "YYYYMMDD" to 48 half-hour kWh.
+function readNem12(lines) {
+  const raw = { E1: new Map(), B1: new Map() };
+  let ch = null, n = 0, unit = 1;
+  for (const line of lines) {
+    const r = cells(line);
+    if (r[0] === "200") {
+      const uom = (r[7] || "").toUpperCase();
+      ch = r[4] || r[3];                       // NMI suffix, e.g. "E1"
+      if (ch === "E1" && raw.network === undefined) raw.network = nmiNetwork(r[1]);
+      n = 1440 / parseInt(r[8], 10);           // readings per day (288 for 5-minute data)
+      unit = uom === "WH" ? 0.001 : 1;         // some files use Wh instead of kWh
+      if (!raw[ch] && (uom === "KWH" || uom === "WH")) throw new Error(SECOND_METER);
+      if (!(n >= 48 && n % 48 === 0)) throw new Error("This file's reading interval is not supported.");
+    } else if (r[0] === "300" && raw[ch]) {
+      const v = halfHours(r.slice(2, 2 + n).map(x => reading(x) * unit), n);
+      if (v) raw[ch].set(r[1], v);             // a repeated day (files joined together): the last wins
+    }
+  }
+  return raw;
+}
+
+// Jemena's layout. Same result as readNem12. Dates come as 2023-07-19, 19/07/2023 or 19/Jul/2023.
+const MONTH_KEYS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+function jemenaDate(s) {
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return m[1] + m[2] + m[3];
+  m = /^(\d{1,2})\/(\d{1,2}|[A-Za-z]{3})\/(\d{4})$/.exec(s);
+  if (!m) return null;
+  const mon = /\d/.test(m[2]) ? +m[2] : MONTH_KEYS.indexOf(m[2].toLowerCase()) + 1;
+  return mon >= 1 && mon <= 12 ? m[3] + pad(mon) + pad(+m[1]) : null;
+}
+function readJemena(lines) {
+  const raw = { E1: new Map(), B1: new Map() };
+  const meters = { E1: new Set(), B1: new Set() };
+  let n = 0;
+  for (const line of lines) {
+    const r = cells(line);
+    if (!r[0]) continue;
+    if (/^NMI$/i.test(r[0])) { n = r.slice(5).filter(Boolean).length; continue; }   // the header row
+    if (!(n >= 48 && n % 48 === 0)) throw new Error("This file's reading interval is not supported.");
+    const kind = r[2].toLowerCase();
+    const ch = kind === "consumption" ? "E1" : kind === "generation" ? "B1" : null;
+    if (!ch) throw new Error(SECOND_METER);                          // e.g. "Controlled Load Consumption"
+    meters[ch].add(r[1]);
+    if (meters[ch].size > 1) throw new Error(SECOND_METER);
+    if (raw.network === undefined) raw.network = nmiNetwork(r[0]);
+    const date = jemenaDate(r[3]);
+    const v = date && halfHours(r.slice(5, 5 + n).map(reading), n);
+    if (v) raw[ch].set(date, v);
+  }
+  return raw;
 }
 
 function pad(x) { return String(x).padStart(2, "0"); }
@@ -828,7 +904,7 @@ function priceParts(c, meter, perDay) {
   let usage = 0, supply = 0, fit = 0, rebate = 0;
   // Some plans state their times in standard time all year (contract timeZone "AEST"; ENGIE
   // and Origin say "billed in AEST"). They are matched on the meter's own AEST clock.
-  const std = c.timeZone === "AEST";
+  const std = (c.timeZone || "AEST") === "AEST";   // the standard: AEST when the field is absent
   // Each day's parts, kept only when perDay is asked for. They are differences of the running
   // sums, so the totals are added in exactly the same order as before (and as the Python).
   const n = meter.days.length;
@@ -1117,46 +1193,155 @@ function stayView(meter, months, today = new Date()) {
 //     Australian Energy Regulator, "Residential energy consumption benchmarks" (9 Dec 2020),
 //     Table 17, Victoria, climate zone 6 (Melbourne). kWh for summer (Dec-Feb), autumn
 //     (Mar-May), winter (Jun-Aug) and spring (Sep-Nov). The report gives no split by gas.
-//   - When in the day and year a home uses it: all homes on United Energy's network, grid
-//     use (imports) in 2024 and 2025, from AEMO's Victorian disaggregated 5-minute load data,
-//     published by the Essential Services Commission with its 2026-27 Default Offer review.
+//   - When in the day and year a home uses it: all homes on the chosen network, grid use
+//     (imports) in 2024 and 2025, from AEMO's Victorian disaggregated 5-minute load data,
+//     published by the Essential Services Commission with its 2026-27 Default Offer review
+//     (built by reference/sample_shapes.py, 8 Oct 2026).
 //     It includes homes with solar panels, so midday use is a little low for a home without.
 const SAMPLE_SEASONS = { 1: [674, 684, 927, 668], 2: [1112, 1125, 1493, 1110], 3: [1143, 1165, 1606, 1163],
                          4: [1324, 1338, 1821, 1322], 5: [1686, 1718, 2245, 1702] };
-// One row per month and day type (January weekdays, January weekends, February weekdays, ...):
-// the average day's use in 48 half hours on standard time (AEST, as in usage files), in parts of
-// 10,000. SAMPLE_LEVEL is each row's daily use relative to the average day (1000 = average).
-const SAMPLE_SHAPE = [
-  [182,164,151,143,137,133,130,129,130,133,139,144,147,152,161,164,172,175,180,182,186,190,195,201,205,209,215,222,230,240,253,267,285,306,320,323,319,311,303,296,288,275,255,232,210,190,222,204],
-  [171,153,141,133,127,122,119,117,116,116,119,120,121,126,138,148,161,170,180,188,198,207,217,225,231,238,243,250,255,262,271,285,299,315,322,322,318,311,303,294,285,271,252,231,209,189,214,197],
-  [175,159,148,140,135,131,129,128,130,133,142,156,169,173,169,161,165,165,169,171,176,181,188,194,200,207,213,221,229,241,262,281,299,318,328,334,325,319,311,303,292,273,249,224,201,181,210,192],
-  [158,143,132,125,120,116,113,112,111,112,115,120,126,132,143,150,162,168,176,182,189,199,207,215,221,225,232,240,250,263,276,293,311,330,343,344,344,334,322,309,294,275,252,227,204,185,208,192],
-  [179,163,151,144,139,135,133,133,137,141,151,166,185,194,190,177,177,175,176,177,181,184,189,193,196,200,204,209,215,226,243,260,278,300,315,325,323,317,308,297,284,266,245,222,201,183,215,198],
-  [168,152,141,133,128,124,122,120,121,121,124,129,138,148,161,167,178,182,189,193,199,207,212,216,221,226,231,238,245,254,264,276,289,305,314,319,318,312,304,294,281,265,245,224,204,187,214,197],
-  [193,173,159,149,142,137,134,133,134,137,144,155,169,191,214,219,217,207,202,197,193,190,189,188,189,188,187,185,185,187,191,201,217,241,271,305,326,327,318,308,297,285,271,253,233,211,238,220],
-  [198,178,163,152,144,138,134,132,131,132,134,139,146,161,181,195,210,215,219,216,213,210,209,208,208,206,204,201,199,202,206,212,223,241,264,295,313,314,303,292,283,273,261,247,229,210,237,219],
-  [189,171,157,147,141,136,133,132,133,136,145,158,177,207,248,266,253,228,214,200,189,180,174,170,167,164,162,158,156,157,159,171,194,226,268,310,332,339,329,323,315,305,291,272,248,222,234,214],
-  [198,179,163,151,143,137,133,130,129,130,133,139,146,161,189,214,231,234,232,224,215,205,200,195,192,188,185,181,177,178,182,191,207,235,272,307,321,318,311,305,298,290,278,262,242,220,234,215],
-  [178,162,149,140,133,129,126,125,126,129,137,150,167,194,229,253,251,232,221,208,198,188,181,176,174,172,170,168,166,169,175,190,215,247,285,318,332,332,328,322,314,304,289,268,243,216,220,201],
-  [185,167,153,143,135,129,126,123,123,124,128,133,140,154,177,204,227,236,239,234,227,217,211,205,201,199,198,196,193,196,202,213,229,256,286,310,314,312,305,298,290,282,269,253,232,210,217,199],
-  [180,163,151,142,135,131,128,126,127,130,139,150,166,190,222,244,245,231,223,212,202,191,186,182,179,177,177,177,175,176,179,190,210,237,273,308,326,327,324,318,311,302,288,268,243,217,221,201],
-  [190,173,159,148,140,134,130,127,126,126,129,134,140,153,176,201,222,232,235,229,223,214,209,203,199,196,193,191,191,197,201,210,224,249,278,303,311,312,306,300,293,285,274,258,237,215,221,203],
-  [192,175,162,153,146,142,139,137,139,142,152,167,186,218,256,269,254,227,213,199,187,177,173,168,164,161,160,158,155,156,158,168,186,211,248,290,321,332,327,322,316,307,294,274,250,224,232,213],
-  [205,187,172,160,152,146,142,140,139,140,144,150,157,175,203,225,239,240,236,224,214,201,194,187,182,178,174,171,166,166,169,176,188,210,243,282,310,315,313,308,302,295,284,269,248,226,236,217],
-  [199,180,166,156,149,143,140,138,139,142,151,164,182,208,231,237,226,208,199,190,185,178,176,173,173,172,169,166,161,161,162,170,186,209,243,285,320,336,335,329,321,312,299,280,256,230,243,222],
-  [206,187,172,160,152,146,142,139,138,139,142,149,157,171,188,201,211,215,215,212,211,205,206,206,204,201,196,191,187,186,187,192,200,217,243,274,301,313,310,302,295,287,276,260,240,219,234,215],
-  [194,178,166,158,152,148,147,149,155,165,184,210,229,238,232,215,209,200,195,190,191,187,186,183,178,174,170,168,167,171,179,191,208,231,253,273,290,305,309,307,299,285,266,244,221,201,232,217],
-  [200,183,169,159,153,148,145,143,145,149,157,169,178,190,203,209,214,212,212,211,214,214,213,209,205,201,197,194,191,192,197,212,226,245,261,274,285,292,292,286,277,264,247,228,209,192,224,210],
-  [188,171,160,151,146,143,142,143,148,157,173,189,203,212,209,197,196,193,192,190,192,192,193,192,190,189,187,188,188,195,207,220,239,261,278,286,291,296,296,301,294,279,259,236,214,194,228,212],
-  [189,173,161,152,146,142,140,138,139,142,148,155,164,175,189,197,206,208,212,212,217,218,221,222,219,217,213,213,215,219,224,232,243,259,269,275,277,280,284,281,274,260,243,224,204,187,218,204],
-  [180,163,152,144,138,134,132,131,134,139,146,153,160,168,174,174,180,181,187,190,197,201,204,207,209,210,212,216,222,232,245,258,272,290,301,307,304,299,295,292,286,272,253,232,210,191,220,203],
-  [192,174,161,152,146,142,139,137,138,139,142,144,148,157,172,181,192,195,202,205,212,214,215,217,219,218,216,219,221,226,232,243,256,272,282,285,284,280,280,280,277,267,251,232,211,193,228,212]];
-const SAMPLE_LEVEL = [826,951,901,1012,834,936,827,856,1048,1093,1361,1405,1387,1425,1167,1206,1012,1019,824,838,801,862,848,788];
+// For each network, one row per month and day type (January weekdays, January weekends,
+// February weekdays, ...): the average day's use in 48 half hours on standard time (AEST, as
+// in usage files), in parts of 10,000. `level` is each row's daily use relative to the
+// average day (1000 = average). Built from each network's homes in 2024 and 2025.
+const SAMPLE_SHAPES = {
+  "United Energy": { level: [826,951,901,1012,834,936,827,856,1048,1093,1361,1405,1387,1425,1167,1206,1012,1019,824,838,801,862,848,788],
+    shape: [
+      [182,164,151,143,137,133,130,129,130,133,139,144,147,152,161,164,172,175,180,182,186,190,195,201,205,209,215,222,230,240,253,267,285,306,320,323,319,311,303,296,288,275,255,232,210,190,222,204],
+      [171,153,141,133,127,122,119,117,116,116,119,120,121,126,138,148,161,170,180,188,198,207,217,225,231,238,243,250,255,262,271,285,299,315,322,322,318,311,303,294,285,271,252,231,209,189,214,197],
+      [175,159,148,140,135,131,129,128,130,133,142,156,169,173,169,161,165,165,169,171,176,181,188,194,200,207,213,221,229,241,262,281,299,318,328,334,325,319,311,303,292,273,249,224,201,181,210,192],
+      [158,143,132,125,120,116,113,112,111,112,115,120,126,132,143,150,162,168,176,182,189,199,207,215,221,225,232,240,250,263,276,293,311,330,343,344,344,334,322,309,294,275,252,227,204,185,208,192],
+      [179,163,151,144,139,135,133,133,137,141,151,166,185,194,190,177,177,175,176,177,181,184,189,193,196,200,204,209,215,226,243,260,278,300,315,325,323,317,308,297,284,266,245,222,201,183,215,198],
+      [168,152,141,133,128,124,122,120,121,121,124,129,138,148,161,167,178,182,189,193,199,207,212,216,221,226,231,238,245,254,264,276,289,305,314,319,318,312,304,294,281,265,245,224,204,187,214,197],
+      [193,173,159,149,142,137,134,133,134,137,144,155,169,191,214,219,217,207,202,197,193,190,189,188,189,188,187,185,185,187,191,201,217,241,271,305,326,327,318,308,297,285,271,253,233,211,238,220],
+      [198,178,163,152,144,138,134,132,131,132,134,139,146,161,181,195,210,215,219,216,213,210,209,208,208,206,204,201,199,202,206,212,223,241,264,295,313,314,303,292,283,273,261,247,229,210,237,219],
+      [189,171,157,147,141,136,133,132,133,136,145,158,177,207,248,266,253,228,214,200,189,180,174,170,167,164,162,158,156,157,159,171,194,226,268,310,332,339,329,323,315,305,291,272,248,222,234,214],
+      [198,179,163,151,143,137,133,130,129,130,133,139,146,161,189,214,231,234,232,224,215,205,200,195,192,188,185,181,177,178,182,191,207,235,272,307,321,318,311,305,298,290,278,262,242,220,234,215],
+      [178,162,149,140,133,129,126,125,126,129,137,150,167,194,229,253,251,232,221,208,198,188,181,176,174,172,170,168,166,169,175,190,215,247,285,318,332,332,328,322,314,304,289,268,243,216,220,201],
+      [185,167,153,143,135,129,126,123,123,124,128,133,140,154,177,204,227,236,239,234,227,217,211,205,201,199,198,196,193,196,202,213,229,256,286,310,314,312,305,298,290,282,269,253,232,210,217,199],
+      [180,163,151,142,135,131,128,126,127,130,139,150,166,190,222,244,245,231,223,212,202,191,186,182,179,177,177,177,175,176,179,190,210,237,273,308,326,327,324,318,311,302,288,268,243,217,221,201],
+      [190,173,159,148,140,134,130,127,126,126,129,134,140,153,176,201,222,232,235,229,223,214,209,203,199,196,193,191,191,197,201,210,224,249,278,303,311,312,306,300,293,285,274,258,237,215,221,203],
+      [192,175,162,153,146,142,139,137,139,142,152,167,186,218,256,269,254,227,213,199,187,177,173,168,164,161,160,158,155,156,158,168,186,211,248,290,321,332,327,322,316,307,294,274,250,224,232,213],
+      [205,187,172,160,152,146,142,140,139,140,144,150,157,175,203,225,239,240,236,224,214,201,194,187,182,178,174,171,166,166,169,176,188,210,243,282,310,315,313,308,302,295,284,269,248,226,236,217],
+      [199,180,166,156,149,143,140,138,139,142,151,164,182,208,231,237,226,208,199,190,185,178,176,173,173,172,169,166,161,161,162,170,186,209,243,285,320,336,335,329,321,312,299,280,256,230,243,222],
+      [206,187,172,160,152,146,142,139,138,139,142,149,157,171,188,201,211,215,215,212,211,205,206,206,204,201,196,191,187,186,187,192,200,217,243,274,301,313,310,302,295,287,276,260,240,219,234,215],
+      [194,178,166,158,152,148,147,149,155,165,184,210,229,238,232,215,209,200,195,190,191,187,186,183,178,174,170,168,167,171,179,191,208,231,253,273,290,305,309,307,299,285,266,244,221,201,232,217],
+      [200,183,169,159,153,148,145,143,145,149,157,169,178,190,203,209,214,212,212,211,214,214,213,209,205,201,197,194,191,192,197,212,226,245,261,274,285,292,292,286,277,264,247,228,209,192,224,210],
+      [188,171,160,151,146,143,142,143,148,157,173,189,203,212,209,197,196,193,192,190,192,192,193,192,190,189,187,188,188,195,207,220,239,261,278,286,291,296,296,301,294,279,259,236,214,194,228,212],
+      [189,173,161,152,146,142,140,138,139,142,148,155,164,175,189,197,206,208,212,212,217,218,221,222,219,217,213,213,215,219,224,232,243,259,269,275,277,280,284,281,274,260,243,224,204,187,218,204],
+      [180,163,152,144,138,134,132,131,134,139,146,153,160,168,174,174,180,181,187,190,197,201,204,207,209,210,212,216,222,232,245,258,272,290,301,307,304,299,295,292,286,272,253,232,210,191,220,203],
+      [192,174,161,152,146,142,139,137,138,139,142,144,148,157,172,181,192,195,202,205,212,214,215,217,219,218,216,219,221,226,232,243,256,272,282,285,284,280,280,280,277,267,251,232,211,193,228,212]] },
+  "CitiPower": { level: [796,878,899,953,838,892,819,828,1071,1090,1408,1418,1437,1446,1205,1231,1011,994,823,818,801,842,820,763],
+    shape: [
+      [186,165,151,142,137,133,130,128,129,131,138,148,163,176,175,178,185,187,191,194,198,202,206,210,214,216,220,223,227,233,241,251,264,281,294,300,297,289,281,275,272,264,250,230,224,225,230,216],
+      [180,159,145,136,131,126,123,121,120,119,121,124,130,139,146,158,173,184,195,203,211,219,226,231,235,238,241,243,247,251,257,267,277,288,294,298,294,288,280,274,270,262,248,231,225,226,230,216],
+      [179,159,146,138,133,129,126,125,126,129,139,155,177,190,180,176,178,179,182,184,189,194,200,206,211,217,221,227,232,239,252,265,276,293,302,308,303,295,288,284,279,267,248,225,215,214,217,203],
+      [166,147,134,126,121,117,114,112,111,112,114,119,128,138,145,157,170,179,190,197,205,213,220,226,230,232,237,244,252,261,272,284,297,310,318,320,318,307,295,288,279,265,246,224,216,216,220,208],
+      [182,161,148,140,135,131,128,128,129,133,145,162,187,203,193,187,188,187,189,190,193,197,201,205,208,210,214,217,221,227,238,250,262,279,293,304,300,295,290,283,274,261,244,223,216,217,223,209],
+      [177,157,144,135,130,126,123,121,120,120,123,127,137,149,157,169,182,191,199,205,212,219,225,230,233,236,241,245,249,254,259,267,276,287,293,294,294,289,283,276,267,255,239,221,216,217,222,209],
+      [196,171,154,141,134,129,126,124,124,126,133,144,163,189,204,216,219,214,211,207,205,202,201,201,202,201,201,199,197,198,199,205,215,231,253,281,306,317,309,299,290,279,267,250,244,244,247,232],
+      [203,178,160,148,139,133,129,126,125,125,128,131,140,153,165,181,198,210,219,220,221,220,220,220,221,220,219,217,214,214,215,218,224,235,253,277,298,305,295,285,275,266,256,242,239,241,246,233],
+      [194,170,153,140,132,127,124,122,122,124,131,143,165,197,226,248,245,231,223,212,203,196,191,187,184,182,181,178,174,175,176,183,196,217,249,287,314,325,321,316,309,300,288,270,256,247,242,224],
+      [204,181,162,148,139,132,127,124,123,123,125,129,139,152,167,190,209,219,224,224,221,216,212,209,207,204,202,198,195,195,197,203,213,233,262,294,311,315,307,300,293,284,273,258,248,243,240,226],
+      [184,164,148,137,129,123,120,118,118,120,127,138,159,187,212,236,239,230,223,214,208,201,197,193,190,188,187,186,183,184,187,196,210,232,262,294,314,320,321,317,311,302,290,270,253,239,228,211],
+      [193,173,156,143,134,128,123,121,120,120,123,127,136,148,160,182,203,217,226,229,228,223,220,216,213,212,213,210,208,208,212,219,229,249,274,298,307,308,302,295,288,280,269,253,240,231,224,209],
+      [185,165,150,138,130,124,121,119,119,121,128,139,158,184,208,231,236,229,224,217,209,202,199,196,194,192,193,193,192,191,191,197,207,225,252,284,308,315,317,314,309,301,289,271,254,239,229,211],
+      [197,177,160,147,138,131,126,123,122,122,124,128,136,147,159,180,200,214,223,224,223,219,218,214,213,210,210,207,205,208,210,217,227,246,269,292,306,308,303,297,291,283,273,257,244,234,227,211],
+      [198,177,160,147,139,133,129,127,127,130,138,150,174,206,234,252,247,231,221,211,202,194,190,186,183,180,178,176,173,172,172,178,187,205,232,267,300,317,318,315,309,302,291,273,259,247,240,223],
+      [209,188,170,157,147,140,135,132,130,130,134,138,148,163,178,199,215,225,230,227,223,217,213,206,200,196,194,191,187,185,186,192,199,215,239,269,297,308,306,301,295,287,278,262,251,244,239,225],
+      [204,180,162,149,140,133,130,127,127,129,137,148,171,200,218,230,227,215,209,202,198,193,191,189,189,187,187,183,179,178,177,182,190,206,230,262,297,321,322,319,312,304,293,275,262,254,249,233],
+      [212,189,171,156,146,139,134,131,130,130,133,138,148,161,171,185,199,207,213,215,218,216,217,218,217,215,212,207,203,201,200,203,207,217,237,262,288,303,304,296,289,281,270,255,246,242,241,227],
+      [195,172,156,145,138,134,132,132,136,145,163,190,223,243,230,222,217,210,206,202,203,201,200,198,194,190,187,184,182,184,188,197,209,227,249,268,282,294,300,297,290,277,259,237,228,227,234,223],
+      [201,179,162,150,142,136,133,131,132,135,141,151,166,182,189,200,211,216,221,223,227,228,228,225,221,216,212,209,206,206,209,218,227,243,258,269,278,284,283,277,268,256,240,222,216,220,231,222],
+      [187,166,150,140,135,131,129,129,133,141,158,181,209,227,214,208,206,202,203,201,203,204,205,205,203,202,200,199,197,202,209,219,232,252,269,280,283,284,286,287,282,270,252,230,222,223,231,219],
+      [193,172,156,146,139,135,132,129,130,132,137,145,159,174,182,195,208,214,221,222,227,229,231,232,230,227,224,223,223,226,230,238,244,255,263,268,268,268,268,268,262,251,236,218,213,216,225,216],
+      [183,162,148,139,133,129,126,125,127,132,141,154,173,188,185,188,194,196,201,204,209,212,215,217,217,218,219,221,224,230,238,248,257,272,282,285,287,282,275,273,271,262,247,228,221,221,227,214],
+      [196,174,159,148,142,138,135,132,132,133,136,141,151,164,173,185,198,206,215,219,225,228,229,229,229,227,225,226,228,230,232,240,248,259,268,273,270,265,261,260,259,252,239,223,220,224,233,221]] },
+  "Powercor": { level: [834,927,880,960,824,895,824,845,1045,1076,1377,1426,1392,1433,1197,1241,1031,1037,820,835,790,838,849,807],
+    shape: [
+      [212,183,171,159,150,144,141,140,142,145,152,158,163,165,151,149,151,151,153,155,160,166,173,179,184,189,195,203,211,222,235,251,271,295,311,320,316,312,308,300,288,271,261,245,237,245,263,254],
+      [198,171,160,149,140,134,130,128,127,128,131,132,134,138,135,141,148,154,161,168,177,187,197,205,212,218,224,231,238,246,258,270,284,299,309,312,311,307,303,294,282,266,256,241,233,238,252,243],
+      [202,176,165,155,147,143,140,140,143,147,157,172,191,191,162,149,146,144,145,147,152,158,166,172,179,185,192,200,209,224,244,262,283,306,320,329,327,325,317,304,287,265,252,234,225,232,249,240],
+      [187,162,152,141,133,129,126,124,124,125,128,134,142,146,141,145,149,152,157,162,169,178,189,196,203,209,218,227,238,249,262,278,297,316,329,336,334,328,317,301,284,263,250,233,225,231,245,236],
+      [209,181,170,159,150,145,143,144,148,153,165,180,206,216,184,165,158,153,150,149,152,158,163,167,171,175,180,186,194,209,226,245,268,294,313,325,330,323,310,295,278,258,248,233,227,237,257,250],
+      [198,172,162,151,143,137,134,133,133,134,138,143,156,166,161,163,167,167,169,171,176,185,191,196,200,205,214,221,229,236,245,259,275,294,307,315,319,311,299,285,270,251,243,229,224,233,249,241],
+      [236,204,188,173,160,152,147,145,146,150,159,171,192,214,214,211,201,186,177,169,163,159,158,158,160,159,159,159,160,164,170,183,201,228,264,303,323,324,313,302,290,277,274,263,258,267,285,281],
+      [241,209,193,177,163,154,149,145,144,145,148,154,166,182,187,196,203,202,197,190,184,178,176,176,177,176,175,173,172,174,179,188,201,224,257,294,314,309,297,286,276,266,265,258,255,265,282,278],
+      [232,205,191,177,164,156,151,149,150,154,164,179,204,233,251,264,244,212,193,176,162,151,145,141,139,136,136,134,133,135,140,155,178,212,259,303,318,323,317,312,304,293,287,274,263,263,272,266],
+      [238,210,194,179,166,157,151,148,146,147,151,158,170,186,199,220,228,224,214,200,187,175,170,166,164,160,159,154,152,154,159,170,188,220,262,298,312,308,301,294,287,279,275,266,259,261,270,264],
+      [216,195,182,171,160,152,147,144,145,148,157,170,192,217,230,251,243,219,204,189,176,164,157,153,151,148,150,149,149,152,159,176,199,233,273,308,321,319,313,307,299,287,278,263,249,245,248,242],
+      [220,198,184,172,160,152,147,143,142,142,146,152,162,176,184,208,225,229,226,216,205,193,186,181,178,176,176,173,173,176,184,197,214,242,274,298,299,299,292,285,277,267,262,251,241,239,242,236],
+      [219,198,186,174,163,155,150,147,148,151,160,172,193,215,225,244,240,222,207,192,179,167,160,156,154,151,153,152,152,154,159,172,190,220,260,297,315,314,311,305,297,287,279,265,251,247,249,243],
+      [223,201,188,175,163,154,149,145,143,143,145,151,161,173,182,205,221,225,221,213,202,191,186,182,180,178,179,179,177,179,184,195,209,235,265,291,301,298,291,285,278,269,264,253,244,242,244,238],
+      [232,209,196,184,172,164,159,156,157,161,171,186,211,241,255,263,242,212,193,177,163,153,148,144,143,140,140,138,136,136,139,151,169,196,236,280,309,319,315,309,303,293,287,273,260,258,263,258],
+      [241,217,203,189,177,168,161,158,156,157,161,168,181,198,208,225,234,230,220,206,192,178,170,163,158,154,153,150,147,148,151,159,170,193,229,269,296,302,299,295,289,282,279,269,260,261,266,260],
+      [244,217,202,188,175,166,161,158,158,162,172,187,213,238,234,232,214,191,178,166,158,151,148,146,146,144,144,140,138,138,140,151,166,190,225,271,306,321,322,316,309,299,294,281,271,272,282,275],
+      [245,218,203,188,175,165,159,155,154,155,160,167,181,195,192,200,205,202,198,192,186,180,178,179,180,175,173,166,162,160,162,167,178,197,226,261,291,302,303,295,288,279,275,265,259,263,274,267],
+      [243,214,199,185,173,166,163,164,171,182,204,231,256,261,220,197,185,174,166,159,158,156,156,153,150,147,145,144,144,150,160,173,192,218,241,263,283,300,306,300,290,275,265,251,246,258,283,280],
+      [243,214,199,184,172,164,159,158,159,164,173,186,199,208,198,199,198,193,190,187,185,183,182,179,174,170,169,169,169,173,180,191,208,228,247,265,280,286,288,281,270,256,249,237,236,250,275,273],
+      [232,202,188,175,164,158,156,157,163,174,193,208,226,230,195,179,172,166,162,158,159,161,164,163,162,162,162,165,165,175,188,204,225,249,267,279,286,295,302,298,288,271,260,245,241,253,279,274],
+      [228,199,185,172,161,154,150,149,150,154,162,167,176,185,179,182,186,186,186,185,188,191,194,192,190,190,190,193,194,199,206,218,234,251,263,270,275,281,286,281,270,255,247,235,232,245,269,265],
+      [215,187,174,162,152,146,143,143,146,152,161,166,175,180,161,157,158,158,160,162,168,174,180,184,186,188,193,198,204,215,228,242,258,278,291,300,299,301,300,296,286,270,259,243,237,245,264,255],
+      [224,194,181,168,158,151,147,145,146,148,151,150,156,165,160,165,170,172,176,178,183,188,192,195,196,197,198,201,205,211,219,231,246,264,275,283,284,285,283,286,278,264,257,244,240,251,273,266]] },
+  "Jemena": { level: [812,924,903,1007,829,919,810,832,1052,1084,1395,1438,1427,1450,1187,1234,1005,999,798,810,786,852,856,779],
+    shape: [
+      [175,160,150,143,138,135,132,131,132,134,139,143,148,152,154,156,161,164,167,170,175,181,189,196,202,209,216,224,234,244,259,274,292,312,325,329,324,316,309,303,295,282,263,241,219,198,212,193],
+      [166,152,141,134,129,125,122,120,119,118,120,119,121,126,134,142,152,162,171,180,191,202,212,220,228,235,241,247,254,262,275,287,301,312,316,318,317,313,309,302,294,281,263,242,221,201,211,192],
+      [167,154,145,139,134,131,129,128,130,133,142,154,169,171,163,154,156,156,159,161,166,173,182,190,198,207,214,225,235,250,273,294,311,327,333,335,329,323,316,309,297,279,256,231,207,187,198,180],
+      [150,137,129,122,118,114,112,111,110,111,113,118,124,129,137,144,153,160,169,176,185,195,204,214,222,228,235,244,255,268,283,300,320,334,343,351,348,340,327,314,301,281,257,232,210,191,199,182],
+      [172,158,149,143,138,135,134,135,140,143,152,165,185,193,182,170,168,166,166,167,170,175,180,186,190,196,202,209,218,233,252,270,288,307,321,329,331,326,315,305,291,273,252,230,208,190,205,187],
+      [164,151,141,134,130,126,123,123,124,123,125,129,139,146,152,158,166,172,178,184,192,199,207,214,220,226,232,240,250,258,269,282,294,308,315,322,327,317,307,297,285,269,250,230,211,194,207,190],
+      [186,169,156,147,141,137,135,133,135,139,146,157,175,196,211,211,207,197,192,186,184,181,181,181,182,182,183,183,184,188,194,207,226,250,280,311,330,333,325,316,305,293,279,262,242,220,231,211],
+      [194,176,162,152,145,140,136,134,133,133,136,140,150,163,177,189,201,207,208,204,203,201,201,201,202,202,200,200,200,202,207,216,227,244,270,300,316,319,308,299,290,281,270,256,239,221,232,213],
+      [183,166,153,144,137,133,131,130,131,135,145,159,184,215,248,263,249,223,209,196,184,175,169,164,162,160,158,155,154,156,161,176,200,233,274,313,333,335,335,331,323,314,299,280,256,230,229,207],
+      [198,179,163,152,143,137,133,130,129,129,133,138,149,164,186,209,223,227,226,218,209,200,195,190,186,182,179,176,175,177,182,192,210,239,276,308,317,320,316,312,306,298,287,272,253,231,233,213],
+      [173,157,145,136,130,125,123,122,123,127,136,150,172,199,227,247,243,225,214,203,193,184,179,174,172,170,168,167,167,170,178,195,221,253,290,320,334,340,333,328,321,310,295,275,250,223,217,196],
+      [182,165,151,140,132,127,123,121,120,121,125,131,141,154,172,196,216,226,229,227,222,215,208,204,201,201,201,199,198,201,208,220,237,263,291,311,318,314,309,302,295,286,274,258,239,217,214,195],
+      [174,159,146,137,131,127,124,123,124,128,137,150,171,195,220,238,237,224,217,208,197,189,184,180,179,178,177,177,177,178,182,194,214,242,277,309,327,331,329,324,318,308,294,275,251,224,218,197],
+      [188,171,157,145,137,131,126,124,123,123,127,132,142,154,171,194,212,222,226,223,217,210,205,200,199,196,194,193,194,199,206,217,234,258,284,306,313,314,310,305,299,291,279,264,244,222,219,200],
+      [187,170,158,149,142,138,136,135,136,141,151,167,192,224,254,264,247,221,208,195,184,175,170,166,163,160,158,156,154,155,157,169,189,215,252,293,322,334,333,330,324,315,302,283,259,232,228,207],
+      [201,183,169,157,149,143,139,136,136,136,141,147,159,175,196,217,231,237,235,227,217,205,198,190,184,178,174,170,167,167,172,180,193,214,245,281,308,314,315,311,307,300,289,274,255,233,232,213],
+      [194,176,163,153,146,141,139,137,139,143,153,167,190,214,229,232,220,202,193,186,180,174,172,170,169,167,166,163,161,161,163,174,190,213,246,285,319,337,340,335,328,319,306,288,264,239,238,216],
+      [205,187,172,160,152,145,141,139,138,139,143,149,160,173,184,195,204,207,207,208,205,202,200,199,198,195,191,188,187,185,188,193,202,218,245,276,302,317,315,309,303,295,284,269,250,229,233,214],
+      [187,172,162,154,150,147,146,148,156,166,186,210,232,239,225,209,202,194,189,183,183,180,179,177,174,171,168,167,167,173,184,197,214,234,255,275,294,311,320,316,308,294,276,254,231,210,224,207],
+      [194,178,167,158,151,147,145,144,146,150,157,167,178,189,196,202,208,209,211,212,213,213,211,208,203,197,193,192,194,196,203,212,225,245,259,272,287,296,297,292,283,270,255,237,218,201,217,202],
+      [178,164,155,148,144,141,141,142,149,158,172,186,203,210,201,189,185,182,181,180,181,182,183,184,185,184,186,188,191,201,216,231,249,270,284,293,299,306,311,315,304,289,269,246,223,202,218,201],
+      [182,167,157,149,144,141,138,137,138,141,146,150,160,170,180,189,196,201,204,206,211,214,218,218,217,215,214,215,219,225,232,244,255,267,274,278,281,286,292,289,281,267,251,232,212,194,209,194],
+      [172,158,148,141,136,133,131,131,133,138,143,148,157,164,165,165,170,173,177,181,187,192,197,202,205,209,213,219,227,239,254,268,282,297,307,311,311,308,305,302,296,282,262,240,219,199,211,192],
+      [186,171,160,152,146,142,139,138,138,139,140,140,146,155,165,173,181,186,192,196,202,207,210,213,216,217,218,221,229,235,241,252,264,276,284,288,288,286,286,287,284,273,258,239,220,202,218,201]] },
+  "AusNet Services": { level: [835,927,889,980,826,907,831,864,1051,1093,1355,1404,1386,1428,1174,1221,1016,1031,830,846,800,853,852,808],
+    shape: [
+      [221,223,208,179,160,149,143,141,142,144,151,154,158,162,150,150,152,152,155,156,160,165,171,176,181,187,195,207,215,226,240,259,282,307,323,329,327,322,315,305,292,274,253,231,209,189,197,213],
+      [207,208,193,167,149,138,132,129,127,127,129,128,131,137,135,142,149,155,162,168,177,187,197,206,213,219,228,237,244,251,260,274,291,310,319,320,317,311,305,297,285,268,248,228,208,188,193,206],
+      [211,212,197,172,156,146,141,140,141,145,155,170,186,187,162,150,147,145,146,147,152,157,164,170,176,183,192,202,212,228,250,272,297,323,337,337,337,331,322,308,291,269,245,221,199,180,187,202],
+      [194,194,181,157,141,131,126,123,122,122,125,131,139,145,142,147,152,155,159,164,170,178,187,195,203,210,217,227,236,247,261,278,299,322,336,342,345,341,329,312,294,272,248,225,203,184,188,201],
+      [220,223,208,180,162,151,147,146,149,154,165,181,206,214,185,167,160,155,153,151,153,156,160,164,168,172,179,188,195,209,229,249,275,305,324,335,335,329,315,299,282,261,240,220,199,181,191,210],
+      [208,209,195,169,152,141,135,133,132,132,135,141,156,167,162,165,168,169,172,174,178,183,190,195,199,203,209,219,227,236,247,263,282,303,316,325,326,318,305,290,275,256,238,220,201,183,191,207],
+      [233,238,224,195,174,160,151,147,146,148,157,169,190,215,215,213,203,189,180,171,166,162,161,160,161,161,162,164,164,167,172,186,208,238,276,316,336,332,319,307,295,281,267,250,229,206,210,226],
+      [236,238,224,196,174,159,150,145,141,140,143,148,161,179,186,196,203,204,203,196,190,185,183,181,181,179,178,179,179,181,187,197,214,240,272,306,324,316,303,290,280,268,257,244,225,205,209,225],
+      [221,224,213,190,173,160,153,148,147,150,161,176,202,233,253,265,245,215,197,180,166,155,149,144,143,141,140,140,139,140,144,160,188,226,273,316,334,331,324,316,307,296,282,263,239,213,208,217],
+      [229,229,217,192,173,159,151,145,142,141,144,150,162,180,198,220,231,229,222,208,195,183,174,168,165,162,161,162,161,162,168,180,201,235,276,310,320,314,306,299,291,281,270,256,236,213,210,219],
+      [203,205,197,179,165,154,147,143,142,144,153,166,189,215,231,251,244,222,208,193,180,168,162,157,156,154,153,155,156,157,164,183,213,249,287,319,328,326,319,311,301,289,274,255,230,205,196,202],
+      [208,208,198,178,163,152,144,140,137,136,139,145,155,170,183,209,227,232,231,222,211,200,191,185,181,178,179,181,182,185,192,206,227,256,286,309,311,305,297,289,280,270,258,243,223,201,196,201],
+      [204,206,198,180,166,155,148,144,143,145,153,166,186,210,222,240,237,220,208,195,184,173,168,164,163,161,161,163,163,165,169,183,207,239,276,311,323,323,315,308,299,288,274,255,232,206,198,203],
+      [212,212,202,183,168,156,148,143,139,138,140,145,156,169,180,205,220,226,224,216,207,197,191,186,183,181,180,181,181,186,193,204,222,250,279,303,310,305,297,290,281,271,261,246,226,205,198,204],
+      [221,223,215,195,180,168,161,157,156,158,169,184,210,242,257,263,242,213,194,178,165,154,149,145,143,140,140,141,139,140,142,156,179,209,251,296,323,329,322,316,308,297,284,265,241,215,209,216],
+      [231,231,220,199,182,170,161,156,152,151,155,161,173,192,206,224,233,231,223,209,196,182,176,168,164,159,156,157,154,154,157,167,184,210,246,286,309,311,306,300,293,284,274,260,239,217,212,219],
+      [231,234,224,201,183,170,162,157,155,157,167,182,207,230,228,226,211,190,178,168,161,154,153,151,151,148,148,149,146,145,148,158,177,204,243,290,325,337,332,324,315,304,291,272,248,222,217,226],
+      [238,239,227,203,184,170,161,155,151,150,153,160,173,186,187,196,201,200,196,190,187,181,180,180,179,176,174,174,172,173,175,181,193,213,243,280,307,319,310,300,292,282,271,256,236,214,211,221],
+      [235,242,231,206,187,174,168,167,173,183,204,230,252,257,220,200,189,177,170,164,163,159,158,155,152,148,147,148,147,153,163,177,199,227,251,274,294,309,315,306,296,280,261,240,218,198,207,226],
+      [240,245,233,206,187,173,165,160,160,162,171,184,196,206,199,200,199,194,191,188,189,187,187,183,179,175,174,175,174,175,181,195,214,237,257,274,288,294,294,286,275,261,244,227,208,190,199,219],
+      [231,237,225,198,179,166,160,159,164,174,190,202,218,224,194,180,173,168,165,162,164,164,165,164,163,162,164,168,171,179,194,210,234,261,279,290,296,304,308,304,293,275,255,234,212,192,203,223],
+      [226,230,217,191,173,160,154,150,149,152,158,162,173,184,181,186,190,189,190,189,193,194,197,198,196,195,195,198,200,204,212,224,241,261,273,280,282,287,287,284,273,258,241,223,204,186,196,214],
+      [220,223,209,183,165,153,148,145,147,153,159,162,172,178,163,159,160,160,161,163,170,173,178,181,184,186,192,200,205,215,230,246,265,287,301,308,308,309,307,301,291,274,254,233,212,192,200,215],
+      [232,234,219,190,171,159,152,148,147,148,149,148,155,165,162,169,174,175,178,179,185,188,191,192,195,197,199,204,209,215,223,234,252,271,284,289,291,290,291,288,281,266,250,232,212,193,203,221]] },
+};
 
-// A year of usage, in the same form as a usage file, for a sample home of `people` (1 to 5).
-// Each day takes its month and day type's shape; each season is then scaled so that it adds up
-// to the benchmark for that season. The year is the 365 days to yesterday, with no solar.
-function sampleMeter(people, today = new Date()) {
+// A year of usage, in the same form as a usage file, for a sample home of `people` (1 to 5) on
+// `network`. Each day takes its month and day type's shape; each season is then scaled so that
+// it adds up to the benchmark for that season. The year is the 365 days to yesterday, no solar.
+function sampleMeter(people, network, today = new Date()) {
+  const { shape, level } = SAMPLE_SHAPES[network] || SAMPLE_SHAPES["United Energy"];
   const end = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   const start = end - 365 * DAY_MS;
   const seasonOf = m => (m === 11 || m <= 1 ? 0 : m <= 4 ? 1 : m <= 7 ? 2 : 3);   // m: 0 = January
@@ -1164,7 +1349,7 @@ function sampleMeter(people, today = new Date()) {
   for (let t = start; t < end; t += DAY_MS) {
     const d = new Date(t), m = d.getUTCMonth();
     const row = m * 2 + (d.getUTCDay() % 6 === 0 ? 1 : 0);   // Saturday or Sunday: the weekend row
-    const imp = Float64Array.from(SAMPLE_SHAPE[row], x => x * SAMPLE_LEVEL[row]);
+    const imp = Float64Array.from(shape[row], x => x * level[row]);
     const season = seasonOf(m);
     for (let i = 0; i < 48; i++) seasonSum[season] += imp[i];
     days.push({ imp, exp: new Float64Array(48), ...localTimes(t), season });
@@ -1235,6 +1420,35 @@ const RETAILER_SITES = {
   "Red Energy": "https://www.redenergy.com.au/", "Sumo": "https://www.sumo.com.au/",
   "Tango Energy": "https://www.tangoenergy.com/",
 };
+// The five Victorian networks: the name the plan list uses for each, and how to get a usage
+// file from its website (checked 8 Oct 2026). Only United Energy's file has been tried here.
+const NETWORKS = {
+  "United Energy": { feed: "United Energy", tried: true,
+    howto: 'Sign in to United Energy\'s myEnergy website. Download your usage as a "detailed report" (a .csv file).' },
+  "CitiPower": { feed: "Citipower",
+    howto: 'Sign in to the myEnergy website that CitiPower shares with Powercor. Download the "Detailed report" (a .csv file).' },
+  "Jemena": { feed: "Jemena",
+    howto: "Sign in to Jemena's My Portal website. Download your usage data as a .csv file." },
+  "AusNet Services": { feed: "AusNet Services (electricity)",
+    howto: 'Sign in to AusNet\'s myHomeEnergy website (only the account holder can sign up). Choose "Export data", then export your meter\'s data to a file.' },
+  "Powercor": { feed: "Powercor",
+    howto: 'Sign in to Powercor\'s myEnergy website. Download the "Detailed report" (a .csv file).' },
+};
+// Which networks serve each postcode, as the plans list them (reference/postcode_networks.py,
+// 8 Oct 2026): the last three digits of each postcode, as all start with 3. 85 of the 699
+// postcodes are on two networks; the bill says which one. The plans themselves are checked
+// again once they load, so an out-of-date entry only means choosing the network by hand.
+const NETWORK_POSTCODES = {
+  "United Energy": "104 105 106 107 108 109 111 114 122 123 124 125 127 128 129 130 131 132 133 144 145 146 147 148 149 150 151 152 161 162 163 165 166 167 168 169 170 171 172 173 174 175 177 178 179 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 204 800 802 803 910 911 912 913 915 916 918 919 920 926 927 928 929 930 931 933 934 936 937 938 939 940 941 942 943 944 975 976 977",
+  "CitiPower": "000 002 003 004 005 006 008 010 011 031 051 052 053 054 055 056 057 065 066 067 068 070 071 078 101 102 103 104 121 122 123 124 125 126 127 129 141 142 143 144 161 181 182 183 205 206 207",
+  "Powercor": "008 012 013 015 016 018 019 020 021 022 023 024 025 026 027 028 029 030 034 036 037 038 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 230 231 232 233 234 235 236 237 238 239 240 241 242 243 249 250 251 254 260 264 265 266 267 268 269 270 271 272 273 274 275 276 277 278 279 280 281 282 283 284 285 286 287 289 292 293 294 300 301 302 303 304 305 309 310 311 312 314 315 317 318 319 321 322 323 324 325 328 329 330 331 332 333 334 335 336 337 338 340 341 342 345 350 351 352 355 356 357 358 360 361 363 364 370 371 373 374 375 377 378 379 380 381 384 385 387 388 390 391 392 393 395 396 400 401 407 409 412 413 414 415 418 419 420 423 424 427 430 431 432 433 434 435 437 438 440 441 442 444 446 447 448 450 451 453 458 460 461 462 463 464 465 467 468 469 472 475 477 478 480 482 483 485 487 488 489 490 491 494 496 498 500 501 505 506 507 509 512 515 516 517 518 520 521 522 523 525 527 529 530 531 533 537 540 542 544 546 549 550 551 555 556 557 558 559 561 562 563 564 565 566 567 568 570 571 572 573 575 576 579 580 581 583 584 585 586 588 589 590 591 594 595 596 597 599 608 610 612 614 616 617 618 620 621 622 623 624 629 630 631 633 634 635 636 637 638 639 640 641 644 646 647 649 662 666 669 685 725 727 728 730 756 762 764",
+  "Jemena": "011 012 013 015 016 019 020 023 025 031 032 033 034 036 037 038 039 040 041 042 043 044 045 046 047 048 049 051 052 058 059 060 061 062 063 064 068 070 072 073 074 076 078 079 081 083 084 085 086 087 335 336 337 340 427 428 429 430 431 437 750 753",
+  "AusNet Services": "061 062 064 074 075 076 082 083 084 085 087 088 089 090 091 093 094 095 096 097 099 106 109 111 113 114 115 116 132 133 134 135 136 137 138 139 140 152 153 154 155 156 158 159 160 175 178 179 180 434 521 522 607 608 610 612 631 646 658 659 660 662 663 664 665 666 669 670 672 673 675 677 678 682 683 685 687 688 690 691 695 697 698 699 700 701 704 705 707 708 709 711 712 713 714 715 717 718 719 720 722 723 725 726 727 728 730 732 733 735 736 737 738 739 740 741 744 746 747 749 750 751 752 753 754 755 756 757 758 759 760 761 762 763 764 765 766 767 770 775 777 778 779 781 782 783 785 786 787 788 789 791 792 793 795 796 797 799 802 803 804 805 806 807 808 809 810 812 813 814 815 816 818 820 821 822 823 824 825 831 832 833 835 840 842 844 847 850 851 852 854 856 857 858 859 860 862 864 865 869 870 871 873 874 875 878 880 882 885 886 887 888 889 890 891 892 893 895 896 898 900 902 903 904 909 912 921 922 923 925 945 946 950 951 953 954 956 957 958 959 960 962 964 965 966 967 971 975 976 977 978 979 980 981 984 987 988 990 991 992 995 996",
+};
+function networksFor(postcode) {
+  if (!/^3\d{3}$/.test(postcode)) return [];
+  return Object.keys(NETWORKS).filter(n => NETWORK_POSTCODES[n].split(" ").includes(postcode.slice(1)));
+}
 const CONCURRENCY = 8;
 const FIRST_SHOWN = 5;                         // plans shown at first
 const PAGE = 10;                               // plans added by each "Show more"
@@ -1330,7 +1544,7 @@ async function loadPlans(fresh) {
 async function fetchPlans(fresh) {
   const id = ++state.loadId;
   Object.assign(state, { loading: true, error: "", stale: false, plans: null, priced: null, pricedYear: null,
-                         failed: 0, listsFailed: 0 });
+                         failed: 0, listsFailed: 0, changes: null });
   showProgress(0, 1, "Finding plans…");
   render();
 
@@ -1338,14 +1552,31 @@ async function fetchPlans(fresh) {
   if (id !== state.loadId) return;
   const useSaved = stale => {
     Object.assign(state, { loading: false, plans: saved.plans, failed: saved.failed || 0, listsFailed: 0,
-                           asOf: new Date(saved.savedAt), stale });
+                           asOf: new Date(saved.savedAt), stale, source: saved.source || "live" });
+    noteChanges();
     priceIfReady();
   };
-  if (!fresh && saved && Date.now() - saved.savedAt < CACHE_HOURS * 3600000) return useSaved(false);
+  if (!fresh && saved && Date.now() - saved.keptAt < CACHE_HOURS * 3600000) return useSaved(false);
   if (saved && navigator.onLine === false) return useSaved(true);       // no internet: last kept prices
 
+  // The weekly copy on this site: one small download instead of about 1,500 requests. Not
+  // used for "Refresh prices", for a saved copy of the page (opened as a file), or once it
+  // is more than SNAPSHOT_DAYS old; then prices come live from the government list below.
+  if (!fresh && location.protocol.startsWith("http")) {
+    const copy = await getSnapshot(state.network);
+    if (id !== state.loadId) return;
+    if (copy) {
+      Object.assign(state, { loading: false, plans: copy.plans, failed: 0, listsFailed: 0,
+                             asOf: new Date(copy.savedAt), source: "copy" });
+      cachePut(state.network, { savedAt: copy.savedAt, keptAt: Date.now(), plans: copy.plans, failed: 0, source: "copy" });
+      noteChanges();
+      priceIfReady();
+      return;
+    }
+  }
+
   // 1. Each retailer's plan list (all of Australia, in pages); keep this network's home plans.
-  const net = state.network.toLowerCase();
+  const net = NETWORKS[state.network].feed.toLowerCase();
   const found = new Map();
   let listsDone = 0, listsFailed = 0;
   await pool(RETAILERS, CONCURRENCY, async slug => {
@@ -1377,10 +1608,13 @@ async function fetchPlans(fresh) {
   if (!plans.length && saved) return useSaved(true);   // the feed is down or there is no internet
 
   Object.assign(state, { loading: false, plans, failed: found.size - plans.length, listsFailed,
-                         asOf: plans.length ? new Date() : null });
+                         asOf: plans.length ? new Date() : null, source: "live" });
   if (!plans.length) state.error = "Could not reach the government plan list. Check your connection, then press Refresh prices.";
   // Keep it only if everything arrived, so a partial download is not reused all day.
-  if (plans.length && !listsFailed && !state.failed) cachePut(state.network, { savedAt: state.asOf.getTime(), plans, failed: 0 });
+  if (plans.length && !listsFailed && !state.failed) {
+    cachePut(state.network, { savedAt: state.asOf.getTime(), keptAt: Date.now(), plans, failed: 0, source: "live" });
+    noteChanges();
+  }
   priceIfReady();
 }
 
@@ -1419,6 +1653,51 @@ async function cachePut(key, value) {
     tx.objectStore("plans").put(value, key);
     tx.oncomplete = tx.onerror = () => db.close();
   } catch (e) { /* no cache: the next visit downloads live */ }
+}
+
+// ---- The weekly copy, and what changed since your last visit -------------------------------
+// A scheduled job (.github/workflows/prices.yml, reference/snapshot.py) saves every plan on
+// each network to prices/<network>.json on this site once a week. Public data only.
+const SNAPSHOT_DAYS = 8;
+const networkSlug = name => name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "");
+async function getSnapshot(network) {
+  try {
+    const r = await fetch(`prices/${networkSlug(network)}.json`, { cache: "no-cache" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    if (!d || d.network !== network || !Array.isArray(d.plans) || !d.plans.length) return null;
+    if (!(Date.now() - d.savedAt < SNAPSHOT_DAYS * DAY_MS)) return null;
+    return d;
+  } catch (e) { return null; }                 // no copy (or opened offline): prices come live
+}
+
+// A short fingerprint of each plan's prices: its rates, daily charges, solar credits,
+// discounts, fees and credits. Kept on this device after each visit (public data only, nothing
+// about you), so the next visit can say which plans changed. "Clear data" deletes it.
+function fingerprint(p) {
+  const c = p.electricityContract || {};
+  const text = JSON.stringify([c.tariffPeriod, c.solarFeedInTariff, c.discounts, c.fees, c.incentives, c.controlledLoad]);
+  let h = 2166136261;                          // FNV-1a, 32 bits: enough to spot a change
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+}
+async function noteChanges() {
+  const plans = state.plans, network = state.network, asOf = state.asOf && state.asOf.getTime();
+  if (!plans || !asOf) return;
+  const key = "seen:" + network;
+  const before = await cacheGet(key);
+  if (plans !== state.plans) return;           // a newer download has started
+  const now = Object.fromEntries(plans.map(p => [p.planId, fingerprint(p)]));
+  if (before && before.asOf !== asOf) {
+    const changed = new Set(plans.filter(p => before.prints[p.planId] && before.prints[p.planId] !== now[p.planId]).map(p => p.planId));
+    const added = plans.filter(p => !before.prints[p.planId]).length;
+    const gone = Object.keys(before.prints).filter(id => !(id in now)).length;
+    state.changes = { since: before.seenAt, changed, added, gone };
+    render();
+  }
+  // Same prices as last time: keep the earlier record, so its changes stay listed until new
+  // prices arrive.
+  if (!before || before.asOf !== asOf) cachePut(key, { asOf, seenAt: Date.now(), prints: now });
 }
 
 // "Clear data on this device": delete this page's own database (and nothing else: the site's
@@ -1469,6 +1748,11 @@ function readFile(file) {
       let note = `Usage from ${fmtDate(m.first)} to ${fmtDate(m.last)}.`;
       if (m.days.length < 28) throw new Error("This file has less than four weeks of usage.");
       if (m.days.length < 330) note += ` Only ${m.days.length} days, so yearly costs are scaled up from these.`;
+      // The file names its network: if another one is chosen, move to the file's network.
+      if (m.network && m.network !== state.network) {
+        note += ` The file comes from ${m.network}'s network, so the page now shows ${m.network}'s plans.`;
+        setNetwork(m.network);
+      }
       setNote("file-note", note);
       $("drop-text").textContent = "File added. Drop another to replace it.";
       state.scrollToResults = true;
@@ -1483,6 +1767,29 @@ function readFile(file) {
   reader.readAsText(file);
 }
 
+// ---- Your network ----------------------------------------------------------------------------
+// The postcode picks the network; a postcode on two networks, or a tap on a tile, can change it.
+// Each network has its own plans (downloaded and kept separately) and its own sample home.
+function setNetwork(name) {
+  if (!NETWORKS[name] || name === state.network) return;
+  state.network = name;
+  state.compare = []; state.retailer = "";     // these name plans on the old network
+  if (state.usage === "sample" && state.meter) state.meter = sampleMeter(state.people, name);
+  renderNetwork();
+  loadPlans(false);
+}
+function renderNetwork() {
+  setPressed("networks", "data-network", state.network);
+  const net = NETWORKS[state.network];
+  $("howto-steps").textContent = net.howto;
+  $("untested-name").textContent = `Files from ${state.network}'s website have not been tried with this page yet.`;
+  $("howto-untested").hidden = !!net.tried;
+  const postcode = $("postcode").value.trim(), nets = networksFor(postcode);
+  $("network-note").textContent = nets.length > 1
+    ? `${postcode} is split between ${nets.join(" and ")}. Your bill names your network: choose it above.`
+    : "Your postcode picks your network. Your bill also names it.";
+}
+
 // ---- Your file or a sample home --------------------------------------------------------------
 // Switching keeps the file aside, so switching back needs no new upload.
 function setUsage(mode) {
@@ -1492,7 +1799,7 @@ function setUsage(mode) {
   $("usage-sample").hidden = mode !== "sample";
 }
 function useSample() {
-  state.meter = sampleMeter(state.people);
+  state.meter = sampleMeter(state.people, state.network);
   setNote("file-note", `A sample home with ${state.people === 5 ? "5 or more people" : state.people === 1 ? "1 person" : state.people + " people"}: about ${Math.round(state.meter.yearKwh).toLocaleString("en-AU")} kWh a year.`);
   state.scrollToResults = true;
   priceIfReady();
@@ -1691,7 +1998,10 @@ function render() {
   if (postcode.length === 4 && !validPostcode) pcNote = "Victorian postcodes only, for now.";
   else if (validPostcode && state.plans && !state.plans.some(p => servesPostcode(p, postcode))) {
     offNetwork = true;
-    pcNote = `${postcode} is not on ${state.network}'s network, the only one that works so far.`;
+    // When the file itself names this network, the postcode is the likelier mistake.
+    pcNote = state.usage === "file" && state.meter && state.meter.network === state.network
+      ? `${postcode} is not on ${state.network}'s network, but your usage file is. Please check the postcode.`
+      : `${postcode} is not on ${state.network}'s network. Choose your network above.`;
   }
   setNote("postcode-note", pcNote);
 
@@ -1699,9 +2009,16 @@ function render() {
   $("refresh").hidden = state.loading || !(state.asOf || state.error);   // also offered after a failure
   const missing = state.failed + state.listsFailed;
   const asOfText = state.asOf && state.asOf.toLocaleString("en-AU", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const ch = state.changes;
+  const changeText = !ch ? ""
+    : ` Since your last check on ${localDate(new Date(ch.since))}: ` + (ch.changed.size + ch.added + ch.gone === 0 ? "no price changes."
+      : [ch.changed.size && `${ch.changed.size} ${ch.changed.size === 1 ? "plan" : "plans"} changed price`,
+         ch.added && `${ch.added} new`, ch.gone && `${ch.gone} gone`].filter(Boolean).join(", ") + ".");
   $("asof").textContent = !state.asOf || state.loading ? ""
     : state.stale ? `${navigator.onLine === false ? "No internet" : "The government plan list could not be reached"}, so these are the prices kept on this device from ${asOfText}.`
-    : `Prices as of ${asOfText}.` + (missing ? " Some plans could not be downloaded, so press Refresh prices." : "");
+    : (state.source === "copy" ? `Prices from this site's weekly copy of the government list, ${asOfText}.` : `Prices as of ${asOfText}.`)
+      + (missing ? " Some plans could not be downloaded, so press Refresh prices." : "") + changeText;
+  $("refresh").textContent = state.source === "copy" ? "Get today's prices" : "Refresh prices";
 
   // What is still missing, in step order.
   let message = state.error;
@@ -1730,7 +2047,7 @@ function render() {
   $("estimate-note").replaceChildren(sample
     ? `These costs are for a sample home with ${sample === 5 ? "5 or more people" : sample === 1 ? "1 person" : sample + " people"}, not for your own home. `
     : "Costs are estimates for the next year, from last year's usage. This is not financial advice. ",
-    Object.assign(el("a", "", sample ? "Why your own file is better" : "Read the limits"), { href: sample ? "#how-sample" : "#how-limits" }));
+    Object.assign(el("a", "", sample ? "Why your own file is better" : "See the limitations"), { href: sample ? "#how-sample" : "#how-limits" }));
   $("estimate-note").classList.toggle("warn", !!sample);
   const hasSolar = state.meter.hasSolar;
   $("solar-box").hidden = hasSolar;
@@ -1902,6 +2219,7 @@ function card(r, rank, ctx) {
     facts.push(pct === 0 ? "same as the Default Offer" : `${Math.abs(pct)}% ${pct < 0 ? "below" : "above"} the Default Offer`);
   }
   if (!ctx.hasSolar) facts.push(solarText(c));
+  if (state.changes && state.changes.changed.has(r.id)) facts.push("price changed since your last check");
   body.append(el("div", "meta", facts.join(" · ")));
   // In "best plan from each retailer" mode, a way to see the retailer's other plans.
   const others = ctx.retailerCounts.get(r.retailer) || 0;
@@ -2230,32 +2548,36 @@ function renderChart(rows, ctx) {
     return billsFor(r).map((b, m) => b - credit[m]);
   });
   const running = pays.map(p => { let t = 0; return [0, ...p.map(x => (t += x))]; });
-  // "Difference": each plan's running total less the baseline's, so a small gap fills the
-  // chart. The baseline is your current plan if you compare it, else the cheapest plan here.
+  // "Difference": what each plan saves (above $0) or costs extra (below $0) against the
+  // baseline, added up month by month, so a small gap fills the chart. Up is always better.
+  // The baseline is your current plan if you compare it, else the cheapest plan here.
   const ends = running.map(t => t[months]);
   let base = rows.indexOf(ctx.currentRow);
   if (base < 0) base = ends.indexOf(Math.min(...ends));
-  const diffs = running.map(t => t.map((x, m) => x - running[base][m]));
+  const isCurrent = rows[base] === ctx.currentRow;
+  const saves = running.map(t => t.map((x, m) => running[base][m] - x));
   const mode = state.chart;
-  const values = mode === "diff" ? diffs : mode === "total" ? running : pays;
+  const values = mode === "diff" ? saves : mode === "total" ? running : pays;
   const series = rows.map((r, i) => ({ values: values[i], cls: `s${i}`, dash: DASHES[i] }));
-  const finals = rows.map((r, i) => `${planLabel(r)}: ${money(mode === "diff" ? diffs[i][months] : running[i][months])}`);
-  const what = mode === "diff" ? `how much more each plan costs than ${planLabel(rows[base])}`
+  const finals = rows.map((r, i) => `${planLabel(r)}: ${money(mode === "diff" ? saves[i][months] : running[i][months])}`);
+  const what = mode === "diff" ? `how much each plan saves (above $0) or costs extra (below $0) against ${planLabel(rows[base])}`
     : mode === "total" ? "the running total" : "each month's bill";
   drawChart($("chart"), series, labels, mode === "month" ? "month" : "total",
-            `Line chart of ${what} over ${STAY_NAMES[months]}. At the end: ${finals.join("; ")}.`);
+            `Line chart of ${what} over ${STAY_NAMES[months]}. At the end: ${finals.join("; ")}.`, mode === "diff");
 
   $("legend").replaceChildren(...rows.map((r, i) => {
     const li = el("li");
     const end = mode !== "diff" ? `${money(running[i][months])} over the year`
-      : i === base ? (rows[base] === ctx.currentRow ? "your current plan, the baseline" : "the cheapest here, the baseline")
-      : diffs[i][months] >= 0 ? `${money(diffs[i][months])} more over the year` : `${money(-diffs[i][months])} less over the year`;
+      : i === base ? (isCurrent ? "your current plan: the line at $0" : "the cheapest here: the line at $0")
+      : saves[i][months] < 0 ? `▼ ${money(-saves[i][months])} more over the year` : `▲ ${money(saves[i][months])} less over the year`;
     li.append(lineSample(`s${i}`, DASHES[i]), `${r.retailer} · ${r.name}: ${end}`);
     return li;
   }));
   const fmt = d => d.toLocaleDateString("en-AU", { day: "numeric", month: "short", timeZone: "UTC" });
   const notes = [mode === "diff"
-    ? `How much more each plan would cost than ${planLabel(rows[base])}, added up month by month. Above $0 costs more; below $0 costs less. A line that crosses $0 changes from cheaper to dearer.`
+    ? (isCurrent
+      ? "Your current plan is the line at $0. ▲ A line above $0 would save you money. ▼ A line below $0 would cost you more. Each line adds up the gap month by month, so a line that crosses $0 changes from cheaper to dearer."
+      : `${planLabel(rows[base])} costs the least over the year, so it is the line at $0. ▼ A line below $0 has cost more so far: the lower, the more. ▲ A line above $0 has cost less so far. Each line adds up the gap month by month; by the end of the year, every other line is at or below $0.`)
     : mode === "total" ? "The running total of what you would pay, from $0 today. A sign-up credit keeps a line flat while it pays the bills."
     : "Each month's bill, after any sign-up credit that the bill uses."];
   notes.push(`Month 1 runs from ${fmt(monthStart(0))} to ${fmt(new Date(addMonths(startUtc, 1) - DAY_MS))}.`);
@@ -2296,7 +2618,8 @@ function niceStep(raw) {
   const mag = 10 ** Math.floor(Math.log10(raw));
   return [1, 2, 2.5, 5, 10].find(f => f * mag >= raw) * mag;
 }
-function drawChart(box, series, labels, mode, label) {
+// guide: label the area above $0 "cheaper" and below it "costs more" (the Difference chart).
+function drawChart(box, series, labels, mode, label, guide) {
   const W = Math.max(280, Math.round(box.clientWidth || 600)), H = W < 480 ? 220 : 260;
   const left = 56, right = 12, top = 10, bottom = 28;
   const all = series.flatMap(s => s.values);
@@ -2311,6 +2634,14 @@ function drawChart(box, series, labels, mode, label) {
     const t = svgEl("text", { x: left - 6, y: y(v) + 4, "text-anchor": "end" });
     t.textContent = money(v);
     svg.append(t);
+  }
+  if (guide) {
+    // At the left, where every line starts at $0, so no line covers the words.
+    const up = svgEl("text", { class: "guide", x: left + 6, y: y(hi) + 14 });
+    up.textContent = "▲ Cheaper";
+    const down = svgEl("text", { class: "guide", x: left + 6, y: y(lo) - 6 });
+    down.textContent = "▼ Costs more";
+    svg.append(up, down);
   }
   // Month names under the middle of each month; every second or third one when space is short.
   const every = Math.max(1, Math.ceil(n / Math.floor(width / 34)));
@@ -2423,7 +2754,7 @@ function rateList(r) {
       rows.push([season + cap(named + when), tierText(b.rates, 1.1)]);
     }
   }
-  if (c.timeZone === "AEST" && !r.model.startsWith("SINGLE_RATE")) rows.push(["Times", "Standard time all year: an hour later during daylight saving"]);
+  if ((c.timeZone || "AEST") === "AEST" && !r.model.startsWith("SINGLE_RATE")) rows.push(["Times", "Standard time all year: an hour later during daylight saving"]);
   const fit0 = (c.solarFeedInTariff || [])[0];
   if (fit0 && fit0.tariffUType === "singleTariff") rows.push(["Solar credit", tierText(fit0.singleTariff.rates, 1, "0c a kWh")]);
   else if (fit0) for (const t of fit0.timeVaryingTariffs || []) rows.push([`Solar credit, ${windowsLabel(t.timeVariations)}`, tierText(t.rates, 1, "0c a kWh")]);
@@ -2481,7 +2812,14 @@ function defList(rows) {
 // ---- Wiring ------------------------------------------------------------------------------------
 $("postcode").addEventListener("input", e => {
   e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4);
+  const nets = networksFor(e.target.value);
+  if (nets.length && !nets.includes(state.network)) setNetwork(nets[0]);
+  renderNetwork();
   render();
+});
+$("networks").addEventListener("click", e => {
+  const name = e.target.closest("[data-network]")?.dataset.network;
+  if (name) { setNetwork(name); render(); }
 });
 $("needs").addEventListener("click", e => {
   const k = e.target.closest("[data-need]")?.dataset.need;
@@ -2623,6 +2961,9 @@ if (location.hash === "#data-cleared") {
   state.deferLoad = true;
   for (const i of document.querySelectorAll("input")) i.value = i.defaultValue;
 }
+const startNets = networksFor($("postcode").value.trim());
+if (startNets.length && !startNets.includes(state.network)) state.network = startNets[0];
+renderNetwork();
 window.addEventListener("hashchange", () => route(true));
 route(false);
 
