@@ -13,8 +13,9 @@
 #   - Percentage discounts (guaranteed and pay-on-time) are assumed to be earned and apply
 #     to usage + supply, not to the solar credit.
 #   - Recurring membership and GreenPower fees are added (see yearly_fees).
-#   - Plans needing a controlled-load circuit or charging on peak demand are skipped:
-#     this meter has neither a controlled-load channel nor a demand tariff.
+#   - A meter with a separately metered hot-water circuit (controlled load, channel E2) is
+#     priced only on plans with a controlled-load rate; any other meter only on plans
+#     without one (9 Oct 2026). Plans charging on peak demand are skipped.
 import json, glob, re, sys, datetime as dt
 from zoneinfo import ZoneInfo
 
@@ -33,18 +34,22 @@ for line in open(METER):
         raw[(ch, r[1])] = [float(x) for x in r[2:2 + n]]
 step = n // 48
 mel, aest = ZoneInfo("Australia/Melbourne"), dt.timezone(dt.timedelta(hours=10))
+HAS_CL = any(ch == "E2" for ch, _ in raw)     # a separately metered hot-water circuit
 days = []      # one entry per day: (local weekday per slot, local minute-of-day per slot, imp[48], exp[48],
-               #   local date per slot, standard-time weekday per slot, standard-time minute per slot)
+               #   local date per slot, standard-time weekday per slot, standard-time minute per slot,
+               #   hot-water circuit kWh[48] or None)
 d = START
 while d < END:
     k = d.strftime("%Y%m%d")
-    if ("E1", k) in raw:
-        E, B = raw[("E1", k)], raw[("B1", k)]
+    if ("E1", k) in raw and (not HAS_CL or ("E2", k) in raw):
+        E, B = raw[("E1", k)], raw.get(("B1", k), [0.0] * n)
         imp = [sum(E[i * step:(i + 1) * step]) for i in range(48)]
         exp = [sum(B[i * step:(i + 1) * step]) for i in range(48)]
+        C = raw.get(("E2", k))
+        cl = [sum(C[i * step:(i + 1) * step]) for i in range(48)] if C else None
         loc = [(dt.datetime.combine(d, dt.time(), aest) + dt.timedelta(minutes=30 * i)).astimezone(mel) for i in range(48)]
         days.append(([DOW[t.weekday()] for t in loc], [t.hour * 60 + t.minute for t in loc], imp, exp,
-                     [t.strftime("%m-%d") for t in loc], [DOW[d.weekday()]] * 48, [30 * i for i in range(48)]))
+                     [t.strftime("%m-%d") for t in loc], [DOW[d.weekday()]] * 48, [30 * i for i in range(48)], cl))
     d += dt.timedelta(days=1)
 SCALE = (END - START).days / len(days)     # annualise over the one missing day
 NDAYS = (END - START).days
@@ -89,10 +94,14 @@ def price(c):
     tps = c["tariffPeriod"]
     if any(tp.get("rateBlockUType") not in ("singleRate", "timeOfUseRates") for tp in tps):
         return None
-    usage = supply = fit = rebate = 0.0
+    usage = supply = fit = rebate = cl_cost = 0.0
     fits = c.get("solarFeedInTariff", [])
     std = (c.get("timeZone") or "AEST") == "AEST"   # standard time all year (the default if absent)
-    for dows, mns, imp, exp, mmdd, sdows, smns in days:
+    if HAS_CL:                                       # the plan's controlled-load rate (one flat rate)
+        cls = c.get("controlledLoad") or []
+        if not cls or cls[0].get("rateBlockUType") != "singleRate" or not cls[0].get("singleRate"): return None
+        cl_rates, cl_daily = cls[0]["singleRate"]["rates"], float(cls[0]["singleRate"].get("dailySupplyCharge") or 0)
+    for dows, mns, imp, exp, mmdd, sdows, smns, cl in days:
         if std: dows, mns = sdows, smns
         tp = next((t for t in tps if in_season(t, mmdd[24])), tps[0])
         supply += float(tp.get("dailySupplyCharge", 0) or 0)
@@ -128,12 +137,15 @@ def price(c):
                     h1 = int(m.group(2)) % 12 + (12 if m.group(3) == "pm" else 0)
                     h2 = int(m.group(4)) % 12 + (12 if m.group(5) == "pm" else 0)
                     rebate += sum(imp[i] for i in range(48) if h1 * 60 <= mns[i] < h2 * 60) * float(m.group(1)) / 100
+        if HAS_CL:
+            cl_cost += tier_cost(cl_rates, 0.0, sum(cl)) + cl_daily
     usage, supply, fit, rebate = usage * 1.1 * SCALE, supply * 1.1 * SCALE, fit * SCALE, rebate * SCALE
+    cl_cost = cl_cost * 1.1 * SCALE
     pct_bill = sum(float(x["percentOfBill"]["rate"]) for x in c.get("discounts", []) if x["methodUType"] == "percentOfBill")
     pct_use = sum(float(x["percentOfUse"]["rate"]) for x in c.get("discounts", [])
                   if x["methodUType"] == "percentOfUse" and not re.search(r"c/kWh", x["description"]))
-    disc = pct_bill * (usage + supply) + pct_use * usage + rebate
-    return usage + supply - disc - fit + yearly_fees(c)
+    disc = pct_bill * (usage + supply + cl_cost) + pct_use * (usage + cl_cost) + rebate
+    return usage + supply + cl_cost - disc - fit + yearly_fees(c)
 
 # Recurring fees that everyone on the plan pays (added 7 Oct 2026). Fee amounts include GST
 # (checked against the text of Amber's and ENGIE's fees). Paper-bill, payment, connection
@@ -181,7 +193,7 @@ def signup_credit(c):
 rows, skipped = [], 0
 for f in glob.glob(f"{PLANS}/*.json"):
     j = json.load(open(f)); p = j["data"]; c = p.get("electricityContract", {})
-    if "CONT_LOAD" in c.get("pricingModel", ""):
+    if ("CONT_LOAD" in c.get("pricingModel", "")) != HAS_CL:
         skipped += 1; continue
     cost = price(c)
     if cost is None:

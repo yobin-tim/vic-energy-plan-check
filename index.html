@@ -338,6 +338,7 @@
           </div>
           <div class="fields">
             <label>Solar credit (cents a kWh) <input id="own-fit" type="text" inputmode="decimal" placeholder="0"></label>
+            <label id="own-cl-field" hidden>Hot-water circuit (cents a kWh) <input id="own-cl" type="text" inputmode="decimal"></label>
             <label>Sign-up credit ($) <input id="own-credit" type="text" inputmode="decimal" placeholder="0"></label>
             <label>Credit paid over (months) <input id="own-credit-months" type="text" inputmode="numeric" value="1"></label>
           </div>
@@ -428,6 +429,7 @@
 
   <h2 id="how-usage">Your usage</h2>
   <p>Your <a href="#w-usage-file">usage file</a> shows how much power your home took from the grid in each 5-minute or 30-minute interval. It also shows how much <a href="#w-solar">solar</a> power your home sent out. The page reads the last 12 months of the file. For each day that is missing from the file, the page uses your average day.</p>
+  <p>Some homes have a separate hot-water circuit with its own meter (<a href="#w-controlled-load">controlled load</a>). The file then shows that circuit's use as well. The page prices only the plans that have a price for that circuit, and adds its cost; other plans are left out, because a home with the circuit cannot use them without rewiring.</p>
 
   <h2 id="how-sample">No file? A sample home</h2>
   <p>If you do not have your usage file, you can price plans on a sample home with 1 to 5 or more people. It is an average home, not yours. So please use it to get a feel for the plans, and use your own file when you can.</p>
@@ -490,7 +492,8 @@
   <ul>
     <li>Usage files from CitiPower, Powercor, Jemena and AusNet Services: none has been tried with this page yet. If yours does not load, use a sample home, and please tell me.</li>
     <li>Gas.</li>
-    <li>Plans for a separate hot-water circuit (<a href="#w-controlled-load">controlled load</a>), and plans with <a href="#w-demand">demand charges</a>.</li>
+    <li>Plans with <a href="#w-demand">demand charges</a>.</li>
+    <li>A sample home with a separate hot-water circuit (<a href="#w-controlled-load">controlled load</a>). Your own file with one works.</li>
     <li>Fees that you can avoid or that you pay only once, such as paper bills, card payments and <a href="#w-connection">connection fees</a>. Each card lists them under "Rates and details".</li>
     <li>Retailers that do not publish to the government list.</li>
   </ul>
@@ -525,6 +528,7 @@
   <ul>
     <li>The date of each day, and how much power your home took from the grid in each 5 or 30 minutes. It uses the last 12 months.</li>
     <li>How much solar power your home sent out, if any.</li>
+    <li>How much power a separate hot-water circuit used, if your home has one.</li>
     <li>The first four digits of your meter's ID number (the NMI). Each network's meter IDs start with its own digits, so these four digits tell the page which network the file came from. The page keeps only the network's name. It never keeps, shows or sends the digits or the rest of the ID.</li>
   </ul>
   <p>It skips everything else in the file, such as the meter's serial number and the notes on estimated readings.</p>
@@ -659,11 +663,12 @@ const DAY_MS = 86400000;
 // ---- 1. Meter file --------------------------------------------------------------------
 // Two layouts, both one day of readings per row, on standard time (AEST) all year:
 //   - NEM12, the national format (United Energy, CitiPower, Powercor and AusNet): a "200" row
-//     starts a channel (E1 = power from the grid, B1 = solar sent out), and each "300" row
-//     holds one day of readings for that channel. The "100" header row is often missing.
+//     starts a channel (E1 = power from the grid, B1 = solar sent out, E2 = a separately
+//     metered hot-water circuit, "controlled load"), and each "300" row holds one day of
+//     readings for that channel. The "100" header row is often missing.
 //   - Jemena's: a header row starting "NMI", then one row per meter, kind and day: NMI, meter
-//     serial number, CON/GEN ("Consumption" or "Generation"), date, an estimated flag, then
-//     the readings (288 five-minute columns, or 48 half hours), in kWh.
+//     serial number, CON/GEN ("Consumption", "Generation" or "Controlled Load Consumption"),
+//     date, an estimated flag, then the readings (288 five-minute columns, or 48), in kWh.
 // The NMI (the meter's ID, in the rows and the file name) is never kept or shown. Only its
 // first four digits are looked at, once, to name the file's network; only that name is kept.
 // The digits for each network are the ones Victorian Energy Compare checks (8 Oct 2026).
@@ -673,7 +678,7 @@ const nmiNetwork = nmi => NMI_NETWORKS[String(nmi || "").slice(0, 4)] || null;
 const cells = line => line.split(",").map(x => x.trim().replace(/^"(.*)"$/, "$1"));
 // A reading cell: a number, or NaN when it is blank (blank means missing, not zero).
 const reading = x => (x === "" ? NaN : Number(x));
-const SECOND_METER = "This file has a second meter (often a separate hot-water circuit). That is not supported yet. Try a sample home instead.";
+const SECOND_METER = "This file has a second meter that the page cannot read yet. Try a sample home instead.";
 
 function parseMeter(text) {
   const lines = text.split(/\r?\n/);
@@ -686,6 +691,8 @@ function parseMeter(text) {
   const last = [...raw.E1.keys()].sort().pop();
   const end = Date.UTC(+last.slice(0, 4), +last.slice(4, 6) - 1, +last.slice(6, 8)) + DAY_MS;
   const start = end - 365 * DAY_MS;
+  // A hot-water circuit (E2): each day then needs its readings too, or it counts as missing.
+  const hasCL = raw.E2.size > 0;
   const days = [];
   for (let t = start; t < end; t += DAY_MS) {
     const d = new Date(t);
@@ -693,13 +700,15 @@ function parseMeter(text) {
     const imp = raw.E1.get(key);
     if (!imp) continue;
     const exp = raw.B1.get(key) || new Float64Array(48);   // no B1 channel means no solar
-    days.push({ imp, exp, ...localTimes(t) });
+    if (hasCL && !raw.E2.has(key)) continue;
+    days.push(hasCL ? { imp, exp, cl: raw.E2.get(key), ...localTimes(t) } : { imp, exp, ...localTimes(t) });
   }
   return {
     days,
     scale: 365 / days.length,                  // annualise over any missing days
     first: start, last: end - DAY_MS,
     hasSolar: days.some(d => d.exp.some(x => x > 0)),
+    hasCL,                                     // a separately metered hot-water circuit
     network,                                   // the file's network, or null if unknown
   };
 }
@@ -715,7 +724,7 @@ function halfHours(v, n) {
 
 // NEM12. Returns { E1, B1 }: maps from "YYYYMMDD" to 48 half-hour kWh.
 function readNem12(lines) {
-  const raw = { E1: new Map(), B1: new Map() };
+  const raw = { E1: new Map(), B1: new Map(), E2: new Map() };
   let ch = null, n = 0, unit = 1;
   for (const line of lines) {
     const r = cells(line);
@@ -746,8 +755,8 @@ function jemenaDate(s) {
   return mon >= 1 && mon <= 12 ? m[3] + pad(mon) + pad(+m[1]) : null;
 }
 function readJemena(lines) {
-  const raw = { E1: new Map(), B1: new Map() };
-  const meters = { E1: new Set(), B1: new Set() };
+  const raw = { E1: new Map(), B1: new Map(), E2: new Map() };
+  const meters = { E1: new Set(), B1: new Set(), E2: new Set() };
   let n = 0;
   for (const line of lines) {
     const r = cells(line);
@@ -755,8 +764,9 @@ function readJemena(lines) {
     if (/^NMI$/i.test(r[0])) { n = r.slice(5).filter(Boolean).length; continue; }   // the header row
     if (!(n >= 48 && n % 48 === 0)) throw new Error("This file's reading interval is not supported.");
     const kind = r[2].toLowerCase();
-    const ch = kind === "consumption" ? "E1" : kind === "generation" ? "B1" : null;
-    if (!ch) throw new Error(SECOND_METER);                          // e.g. "Controlled Load Consumption"
+    const ch = kind === "consumption" ? "E1" : kind === "generation" ? "B1"
+      : kind === "controlled load consumption" ? "E2" : null;
+    if (!ch) throw new Error(SECOND_METER);
     meters[ch].add(r[1]);
     if (meters[ch].size > 1) throw new Error(SECOND_METER);
     if (raw.network === undefined) raw.network = nmiNetwork(r[0]);
@@ -901,7 +911,19 @@ function priceParts(c, meter, perDay) {
     if (m) rebates.push({ cents: Number(m[1]), from: hour12(m[2], m[3]) * 60, to: hour12(m[4], m[5]) * 60 });
   }
 
-  let usage = 0, supply = 0, fit = 0, rebate = 0;
+  // A separately metered hot-water circuit ("controlled load", the file's E2 channel) is
+  // priced on the plan's controlled-load rate. Every Victorian plan with one states a single
+  // rate (1,562 plans, checked 9 Oct 2026); a daily charge inside it is added if one appears.
+  const hasCL = meterHasCL(meter);
+  let clTiers = null, clDaily = 0;
+  if (hasCL) {
+    const x = (c.controlledLoad || [])[0];
+    if (!x || x.rateBlockUType !== "singleRate" || !x.singleRate) return null;
+    clTiers = tiers(x.singleRate.rates);
+    clDaily = Number(x.singleRate.dailySupplyCharge) || 0;
+  }
+
+  let usage = 0, supply = 0, fit = 0, rebate = 0, cl = 0;
   // Some plans state their times in standard time all year (contract timeZone "AEST"; ENGIE
   // and Origin say "billed in AEST"). They are matched on the meter's own AEST clock.
   const std = (c.timeZone || "AEST") === "AEST";   // the standard: AEST when the field is absent
@@ -910,10 +932,11 @@ function priceParts(c, meter, perDay) {
   const n = meter.days.length;
   const dayUse = perDay && new Float64Array(n), daySupply = perDay && new Float64Array(n);
   const dayFit = perDay && new Float64Array(n), dayRebate = perDay && new Float64Array(n);
+  const dayCl = perDay && new Float64Array(n);
   for (let di = 0; di < n; di++) {
     const day = meter.days[di];
     const dow = std ? day.sdow : day.dow, slot = std ? STD_SLOT : day.slot, mins = std ? STD_MINS : day.mins;
-    const before = perDay && [usage, supply, fit, rebate];
+    const before = perDay && [usage, supply, fit, rebate, cl];
     let si = tps.findIndex(tp => inSeason(tp, day.mmdd));
     if (si < 0) si = 0;
     const s = seasons[si];
@@ -944,33 +967,44 @@ function priceParts(c, meter, perDay) {
       for (let i = 0; i < 48; i++) if (r.from <= mins[i] && mins[i] < r.to) kwh += day.imp[i];
       rebate += kwh * r.cents / 100;                     // same order as the Python
     }
+    if (clTiers) {
+      let kwh = 0;
+      for (let i = 0; i < 48; i++) kwh += day.cl[i];
+      cl += tierCost(clTiers, 0, kwh) + clDaily;
+    }
     if (perDay) {
       dayUse[di] = usage - before[0]; daySupply[di] = supply - before[1];
-      dayFit[di] = fit - before[2]; dayRebate[di] = rebate - before[3];
+      dayFit[di] = fit - before[2]; dayRebate[di] = rebate - before[3]; dayCl[di] = cl - before[4];
     }
   }
   usage = usage * 1.1 * meter.scale;
   supply = supply * 1.1 * meter.scale;
   fit *= meter.scale;
   rebate *= meter.scale;
+  cl = cl * 1.1 * meter.scale;
   let pctBill = 0, pctUse = 0;
   for (const x of c.discounts || []) {
     if (x.methodUType === "percentOfBill") pctBill += Number(x.percentOfBill.rate);
     if (x.methodUType === "percentOfUse" && !/c\/kWh/.test(x.description || "")) pctUse += Number(x.percentOfUse.rate);
   }
-  const discount = pctBill * (usage + supply) + pctUse * usage + rebate;
+  // Percentage discounts cover the hot-water circuit too: it is usage on the same bill.
+  const discount = pctBill * (usage + supply + cl) + pctUse * (usage + cl) + rebate;
   const yearFees = yearlyFees(c);
   if (perDay) {
     // One day on the same terms as the total: the percentage discounts are per dollar, so
     // they come off each day's usage and daily charge in the same proportion.
     for (let di = 0; di < n; di++) {
       perDay[di] = dayUse[di] * 1.1 * (1 - pctBill - pctUse) + daySupply[di] * 1.1 * (1 - pctBill)
-                 - dayRebate[di] - dayFit[di] + yearFees / 365;
+                 + dayCl[di] * 1.1 * (1 - pctBill - pctUse) - dayRebate[di] - dayFit[di] + yearFees / 365;
     }
   }
   const fees = yearFees * (meter.feeShare ?? 1);           // fees prorated to a stay
-  return { usage, supply, discount, fit, fees,
-           total: usage + supply - discount - fit + yearlyFees(c) * (meter.feeShare ?? 1) };
+  return { usage, supply, cl, discount, fit, fees,
+           total: usage + supply + cl - discount - fit + yearlyFees(c) * (meter.feeShare ?? 1) };
+}
+// Whether a usage year (a file's, or part of it) has a hot-water circuit: its days carry `cl`.
+function meterHasCL(meter) {
+  return !!(meter.days.length && meter.days[0].cl);
 }
 
 // Recurring fees that everyone on the plan pays. Amounts include GST (checked against the
@@ -1364,15 +1398,16 @@ function sampleMeter(people, network, today = new Date()) {
 }
 
 // ---- 6. Price every plan -----------------------------------------------------------------
-// Skips plans needing a controlled-load circuit (a separately metered hot-water circuit) and
-// plans with peak-demand charges, as the Python does. With keepDays, each row also keeps its
+// A home with a separately metered hot-water circuit (controlled load) gets only the plans
+// with a controlled-load rate; any other home gets only the plans without one. Plans with
+// peak-demand charges are skipped. All as the Python does. With keepDays, each row also keeps its
 // cost on each day of the file (for month-by-month bills).
 function priceAll(plans, meter, keepDays) {
-  const rows = [];
+  const rows = [], hasCL = meterHasCL(meter);
   let skipped = 0;
   for (const p of plans) {
     const c = p.electricityContract || {};
-    if ((c.pricingModel || "").includes("CONT_LOAD")) { skipped++; continue; }
+    if ((c.pricingModel || "").includes("CONT_LOAD") !== hasCL) { skipped++; continue; }
     try {
       const perDay = keepDays ? new Float64Array(meter.days.length) : null;
       const parts = priceParts(c, meter, perDay);
@@ -1748,6 +1783,7 @@ function readFile(file) {
       let note = `Usage from ${fmtDate(m.first)} to ${fmtDate(m.last)}.`;
       if (m.days.length < 28) throw new Error("This file has less than four weeks of usage.");
       if (m.days.length < 330) note += ` Only ${m.days.length} days, so yearly costs are scaled up from these.`;
+      if (m.hasCL) note += " Your home has a separate hot-water circuit (controlled load), so the list shows the plans with a price for it.";
       // The file names its network: if another one is chosen, move to the file's network.
       if (m.network && m.network !== state.network) {
         note += ` The file comes from ${m.network}'s network, so the page now shows ${m.network}'s plans.`;
@@ -1851,8 +1887,10 @@ function ownContract(f) {
       { displayName: "Other times", rates: [{ unitPrice: exGst(f.off) }], timeOfUse: [{ days: DOW.slice(), startTime: "00:00", endTime: "00:00" }] },
     ] });
   }
+  // A hot-water circuit's price, when your file has one: a controlled-load rate, as plans state it.
+  const controlledLoad = f.cl > 0 ? [{ rateBlockUType: "singleRate", singleRate: { rates: [{ unitPrice: exGst(f.cl) }] } }] : [];
   return {
-    pricingModel: f.kind === "flat" ? "SINGLE_RATE" : "TIME_OF_USE", tariffPeriod: [tp],
+    pricingModel: (f.kind === "flat" ? "SINGLE_RATE" : "TIME_OF_USE") + (f.cl > 0 ? "_CONT_LOAD" : ""), tariffPeriod: [tp], controlledLoad,
     solarFeedInTariff: f.fit > 0 ? [{ tariffUType: "singleTariff", singleTariff: { rates: [{ unitPrice: f.fit / 100 }] } }] : [],
     discounts: [], incentives: [], fees: [], eligibility: [],
   };
@@ -1861,7 +1899,7 @@ function ownContract(f) {
 // Rows for typed plans, priced over the chosen stay, in the same shape as feed rows.
 function ownRows() {
   const view = state.stay === 12 ? state.meter : state.view;
-  return state.own.filter(o => !o.listedId).map(o => {
+  return state.own.filter(o => !o.listedId && priceParts(o.contract, view)).map(o => {
     const parts = priceParts(o.contract, view);
     const perDay = new Float64Array(state.meter.days.length);
     const yearly = priceParts(o.contract, state.meter, perDay).total;
@@ -1905,7 +1943,8 @@ function readOwnForm() {
   }
   const f = { kind: state.ownKind, daily: num(v("own-daily")), rate: num(v("own-rate")), peak: num(v("own-peak-rate")),
               off: num(v("own-off-rate")), from: v("own-peak-from"), to: v("own-peak-to"), peakDays: v("own-peak-days"),
-              fit: v("own-fit") ? num(v("own-fit")) : 0 };
+              fit: v("own-fit") ? num(v("own-fit")) : 0,
+              cl: state.meter && meterHasCL(state.meter) ? num(v("own-cl")) : 0 };
   // Bills show cents; a value like 1.05 or 0.30 is almost certainly dollars.
   const looksLikeDollars = "That looks like dollars. Enter cents: for example 105.6 for $1.056 a day, or 25.4 for $0.254 a kWh.";
   if (!(f.daily >= 0)) return { error: "Enter the daily charge in cents, for example 105.6." };
@@ -1914,6 +1953,9 @@ function readOwnForm() {
   if (!rates.every(x => x > 0)) return { error: f.kind === "flat" ? "Enter the price in cents a kWh, for example 25.4." : "Enter both the peak and the other-times price, in cents a kWh." };
   if (rates.some(x => x < 2)) return { error: looksLikeDollars };
   if (rates.some(x => x > 200) || f.daily > 1000 || f.fit > 100) return { error: "One of those prices looks too high. Prices are in cents, including GST." };
+  if (state.meter && meterHasCL(state.meter) && !(f.cl > 0)) return { error: "Enter the price for your hot-water circuit (controlled load) from your bill, in cents a kWh." };
+  if (f.cl > 0 && f.cl < 2) return { error: looksLikeDollars };
+  if (f.cl > 200) return { error: "One of those prices looks too high. Prices are in cents, including GST." };
   if (f.kind === "peak" && !(/^\d\d:\d\d$/.test(f.from) && /^\d\d:\d\d$/.test(f.to) && f.from !== f.to)) return { error: "Enter the peak hours." };
   if (!(f.fit >= 0) || !(credit >= 0) || !(unused >= 0)) return { error: "Amounts must be numbers." };
   const retailer = v("own-retailer");
@@ -1939,7 +1981,9 @@ function addOwn() {
 
 function renderOwnList() {
   $("own-list").replaceChildren(...state.own.map(o => {
-    const li = el("li", "", `${o.name}${o.retailer ? " (" + o.retailer + ")" : ""}${o.current ? " · your current plan" : ""}`);
+    const needsHotWater = !o.listedId && state.meter && meterHasCL(state.meter) && !(o.contract.controlledLoad || []).length;
+    const li = el("li", "", `${o.name}${o.retailer ? " (" + o.retailer + ")" : ""}${o.current ? " · your current plan" : ""}`
+      + (needsHotWater ? " · not shown: it needs a hot-water circuit price, so remove it and add it again" : ""));
     const b = el("button", "", "Remove");
     b.type = "button";
     b.addEventListener("click", () => {
@@ -1989,6 +2033,10 @@ function filterPick() {
 
 // ---- Showing results -----------------------------------------------------------------------
 function render() {
+  // The hot-water price field shows only for a usage file with that circuit.
+  const hotWater = !!(state.meter && meterHasCL(state.meter));
+  $("own-cl-field").hidden = !hotWater;
+  if (state.own.length) renderOwnList();
   const postcode = $("postcode").value.trim();
   const validPostcode = /^3\d{3}$/.test(postcode);
   // Every plan lists the postcodes its network covers, so the plans also tell us whether
@@ -2428,10 +2476,11 @@ function renderCompare() {
   $("cmp-setup").textContent = state.meter.sample ? `Priced on a sample home, not on your own usage.` : `Priced on the next year, from last year's usage.`;
 
   // Household totals over the stay, for average prices.
-  let imported = 0, exported = 0;
-  for (const d of view.days) for (let i = 0; i < 48; i++) { imported += d.imp[i]; exported += d.exp[i]; }
+  let imported = 0, exported = 0, hotWater = 0;
+  for (const d of view.days) for (let i = 0; i < 48; i++) { imported += d.imp[i]; exported += d.exp[i]; if (d.cl) hotWater += d.cl[i]; }
   imported *= view.scale;
   exported *= view.scale;
+  hotWater *= view.scale;
 
   const per = x => ctx.toPeriod(x);
   const centsText = x => `${(x * 100).toFixed(1)}c a kWh`;
@@ -2446,6 +2495,7 @@ function renderCompare() {
   group(`Cost ${ctx.per}, in parts`);
   moneyRow("Daily charges", r => per(r.parts.supply));
   moneyRow("Usage", r => per(r.parts.usage));
+  moneyRow("Hot-water circuit", r => per(r.parts.cl || 0));
   moneyRow("Discounts", r => -per(r.parts.discount));
   moneyRow("Solar credits", r => -per(r.parts.fit));
   moneyRow("Fees", r => per(r.parts.fees));
@@ -2475,6 +2525,10 @@ function renderCompare() {
   const avgUse = rows.map(r => r.parts.usage / imported);
   addRow("Your average usage price", avgUse.map(x => Math.round(x * 1000)), avgUse.map(centsText), "low");
   addRow("Usage prices", rows.map(() => null), rows.map(r => priceRange(r.plan.electricityContract)), null);
+  if (hotWater > 0) {
+    const hw = rows.map(r => (r.parts.cl || 0) / hotWater);
+    addRow("Hot-water circuit price", hw.map(x => Math.round(x * 1000)), hw.map(centsText), "low");
+  }
   if (ctx.hasSolar) {
     const fit = rows.map(r => (exported > 0 ? r.parts.fit / exported : 0));
     addRow("Your average solar credit", fit.map(x => Math.round(x * 1000)), fit.map(centsText), "high");
