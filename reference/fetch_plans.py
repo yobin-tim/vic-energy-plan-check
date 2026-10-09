@@ -2,10 +2,14 @@
 # Fetch every brand's current residential electricity plans on one network (United Energy
 # unless named, as the plan list spells it, e.g. "Citipower" or "AusNet Services
 # (electricity)") from each retailer's public CDR endpoint (no login), then each plan's full
-# detail. Other networks go to ./allplans-<network>/.
+# detail. Other networks go to ./allplans-<network>/. The three Victorian gas networks
+# ("Australian Gas Networks", "AusNet Services (gas)", "Multinet") fetch gas plans instead,
+# into ./allplans-gas-<network>/ (9 Oct 2026).
 import json, subprocess, os, sys, re, concurrent.futures as cf
 NETWORK = sys.argv[1] if len(sys.argv) > 1 else "United Energy"
-OUT = "allplans" if NETWORK == "United Energy" else "allplans-" + re.sub(r"[^a-z]+", "-", NETWORK.lower()).strip("-")
+FUEL = "GAS" if NETWORK in ("Australian Gas Networks", "AusNet Services (gas)", "Multinet") else "ELECTRICITY"
+SLUG = re.sub(r"[^a-z]+", "-", NETWORK.lower()).strip("-")
+OUT = "allplans" if NETWORK == "United Energy" else ("allplans-gas-" if FUEL == "GAS" else "allplans-") + SLUG
 os.makedirs(OUT, exist_ok=True)
 brands = json.load(open("retailer_sources.json"))["data"]
 def get(url, xv="1"):
@@ -17,7 +21,7 @@ def plans_for(b):
     base = b["publicBaseUri"].rstrip("/") + "/cds-au/v1/energy/plans"
     ids, page = [], 1
     while True:
-        d = get(f"{base}?fuelType=ELECTRICITY&effective=CURRENT&page-size=1000&page={page}")
+        d = get(f"{base}?fuelType={FUEL}&effective=CURRENT&page-size=1000&page={page}")
         if not d or "data" not in d: return b["brandName"], base, None
         for p in d["data"]["plans"]:
             if NETWORK in (p.get("geography") or {}).get("distributors", []) \
